@@ -1,438 +1,776 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { useTheme } from '@mui/material/styles';
 
-// Import comprehensive MUI layout, interactive, and feedback components
-import { 
-  Box, Typography, Paper, TextField, Button, Alert, 
-  Select, MenuItem, InputLabel, FormControl, Chip, 
-  Grid, Card, CardContent, Tabs, Tab, List, ListItem, 
+import {
+  Box, Typography, Paper, TextField, Button, Alert,
+  Select, MenuItem, InputLabel, FormControl, Chip,
+  Grid, Card, CardContent, Tabs, Tab, List, ListItem,
   ListItemAvatar, ListItemText, Avatar, IconButton, Divider,
-  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+  LinearProgress, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TableSortLabel, InputAdornment,
+  ToggleButton, ToggleButtonGroup, Badge, Tooltip, Stack,
+  Skeleton, alpha
 } from '@mui/material';
 
-// Production icons for personnel management
-import { 
-  DeleteOutlined as DeleteOutlineIcon, 
-  Assignment as AssignmentIcon, 
-  Badge as BadgeIcon 
+import {
+  DeleteOutlined as DeleteOutlineIcon,
+  Assignment as AssignmentIcon,
+  Badge as BadgeIcon,
+  Search as SearchIcon,
+  FilterList as FilterListIcon,
+  Sort as SortIcon,
+  CheckCircle as CheckCircleIcon,
+  RadioButtonUnchecked as PendingIcon,
+  HourglassEmpty as InProgressIcon,
+  People as PeopleIcon,
+  TaskAlt as TaskAltIcon,
+  TrendingUp as TrendingUpIcon,
+  Add as AddIcon,
+  Refresh as RefreshIcon,
+  MoreVert as MoreVertIcon,
+  EmailOutlined as EmailIcon,
+  WorkOutline as WorkIcon,
+  CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 
-function AdminDashboard() {
-  // 1. Global API & UI Processing State
-  const [tasks, setTasks] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  
-  // Controls which admin workspace panel is visible (0 = Tasks, 1 = Personnel)
-  const [activeTab, setActiveTab] = useState(0);
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const NAVY    = '#1a1f36';
+const NAVY2   = '#252b45';
+const NAVY3   = '#2f3655';
+const ACCENT  = '#6c63ff';
+const TEAL    = '#00d4b4';
+const SURFACE = '#f8f9fc';
+const CARD_BG = '#ffffff';
 
-  // 2. State variables for the "Create Task" form
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState([]); 
+const STATUS_MAP = {
+  completed:   { label: 'Completed',   color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: CheckCircleIcon },
+  'in-progress':{ label: 'In Progress', color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: InProgressIcon },
+  pending:     { label: 'Pending',     color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', icon: PendingIcon },
+};
 
-  // 3. State variables for the Employee Removal Confirmation Modal
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [targetEmployee, setTargetEmployee] = useState(null);
-  const [processingDelete, setProcessingDelete] = useState(false);
+const normaliseStatus = (s = 'pending') => {
+  const v = s.toLowerCase().replace(' ', '-');
+  return STATUS_MAP[v] ? v : 'pending';
+};
 
-  const theme = useTheme();
-  const token = localStorage.getItem('token');
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, accent }) {
+  return (
+    <Card elevation={0} sx={{
+      border: '1px solid', borderColor: 'divider',
+      borderRadius: 2, bgcolor: CARD_BG, height: '100%'
+    }}>
+      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 1.5,
+            bgcolor: alpha(accent, 0.12),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Icon sx={{ fontSize: 20, color: accent }} />
+          </Box>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1 }}>{value}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{label}</Typography>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
 
-  const axiosConfig = {
-    headers: { Authorization: `Bearer ${token}` }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const usersRes = await axios.get('http://127.0.0.1:8000/api/users', axiosConfig);
-      setEmployees(usersRes.data.users);
-
-      const tasksRes = await axios.get('http://127.0.0.1:8000/api/tasks', axiosConfig);
-      setTasks(tasksRes.data.tasks);
-    } catch (error) {
-      setErrorMessage('Failed to load dashboard synchronization streams. Verify network links.');
-    }
-  };
-
-  // --- WORKSPACE ACTION A: Create Task ---
-  const handleCreateTask = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    if (selectedUsers.length === 0) {
-      setErrorMessage('Please assign at least one active employee to this execution token.');
-      return;
-    }
-
-    try {
-      await axios.post('http://127.0.0.1:8000/api/tasks', {
-        title: title,
-        description: description,
-        user_ids: selectedUsers
-      }, axiosConfig);
-
-      setSuccessMessage('Task successfully generated and assigned across target nodes!');
-      
-      setTitle('');
-      setDescription('');
-      setSelectedUsers([]);
-
-      fetchDashboardData();
-    } catch (error) {
-      setErrorMessage('Payload rejection: Ensure string constraints and parameter arrays are valid.');
-    }
-  };
-
-  // --- WORKSPACE ACTION B: Employee Revocation Lifecycle ---
-  const confirmRevocation = (employee) => {
-    setTargetEmployee(employee);
-    setDeleteDialogOpen(true);
-  };
-
-  const executeEmployeeRevocation = async () => {
-    if (!targetEmployee) return;
-    
-    setErrorMessage('');
-    setSuccessMessage('');
-    setProcessingDelete(true);
-
-    try {
-      await axios.delete(`http://127.0.0.1:8000/api/users/${targetEmployee.id}`, axiosConfig);
-      
-      setSuccessMessage(`Access tokens permanently revoked for personnel: ${targetEmployee.name}`);
-      
-      setEmployees(prev => prev.filter(emp => emp.id !== targetEmployee.id));
-      
-      setTasks(prevTasks => prevTasks.map(t => ({
-        ...t,
-        users: t.users ? t.users.filter(u => u.id !== targetEmployee.id) : []
-      })));
-
-    } catch (error) {
-      setErrorMessage('Revocation error: Failed to drop database record. Ensure credentials match.');
-    } finally {
-      setProcessingDelete(false);
-      setDeleteDialogOpen(false);
-      setTargetEmployee(null);
-    }
-  };
+// ─── Task Card ────────────────────────────────────────────────────────────────
+function TaskCard({ task }) {
+  const statusKey = normaliseStatus(task.status);
+  const s = STATUS_MAP[statusKey];
+  const Icon = s.icon;
+  const progress = statusKey === 'completed' ? 100 : statusKey === 'in-progress' ? 55 : 10;
 
   return (
-    // Outer Box relies entirely on the global soft slate background established in theme.js
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1200, mx: 'auto' }}>
-      
-      {/* Master Workspace Header */}
-      <Typography 
-        variant="h4" 
-        gutterBottom 
-        sx={{ 
-          fontWeight: 700, 
-          color: 'text.primary',
-          letterSpacing: '-0.02em',
-          mb: 3 
-        }}
-      >
-        Administrative Operations Console
-      </Typography>
-
-      {errorMessage && <Alert severity="error" sx={{ mb: 3, borderRadius: 1.5 }}>{errorMessage}</Alert>}
-      {successMessage && <Alert severity="success" sx={{ mb: 3, borderRadius: 1.5 }}>{successMessage}</Alert>}
-
-      <Grid container spacing={4}>
-        
-        {/* LEFT COLUMN: Switchboard Workspace (Tabs for Tasks vs. Personnel) */}
-        <Grid item xs={12} md={5}>
-          {/* Inherits global border override, completely removing heavy drop shadows */}
-          <Paper sx={{ overflow: 'hidden' }}>
-            
-            {/* Minimalist Switchboard */}
-            <Tabs 
-              value={activeTab} 
-              onChange={(e, newValue) => setActiveTab(newValue)}
-              variant="fullWidth"
-              sx={{ bgcolor: 'background.paper' }}
-            >
-              <Tab icon={<AssignmentIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Task Engine" />
-              <Tab icon={<BadgeIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Personnel Roster" />
-            </Tabs>
-
-            {/* PANEL 0: Task Generation Form */}
-            {activeTab === 0 && (
-              <Box sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary', fontSize: '1.1rem' }}>
-                  Create & Assign Execution Payload
-                </Typography>
-                
-                <form onSubmit={handleCreateTask}>
-                  <TextField
-                    label="Task Title"
-                    fullWidth
-                    required
-                    margin="normal"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-
-                  <TextField
-                    label="Task Description"
-                    fullWidth
-                    multiline
-                    rows={3}
-                    margin="normal"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel id="multi-select-label">Assign Personnel</InputLabel>
-                    <Select
-                      labelId="multi-select-label"
-                      multiple
-                      value={selectedUsers}
-                      onChange={(e) => setSelectedUsers(e.target.value)}
-                      label="Assign Personnel"
-                      renderValue={(selected) => (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {selected.map((userId) => {
-                            const emp = employees.find(e => e.id === userId);
-                            return (
-                              // Flat, clean outlined chips instead of heavy primary blocks
-                              <Chip 
-                                key={userId} 
-                                label={emp ? emp.name : userId} 
-                                size="small"
-                                variant="outlined"
-                                sx={{ borderColor: 'divider', color: 'text.primary', fontWeight: 500 }} 
-                              />
-                            );
-                          })}
-                        </Box>
-                      )}
-                    >
-                      {employees.map((emp) => (
-                        <MenuItem key={emp.id} value={emp.id} sx={{ py: 1.5 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {emp.name} <Typography component="span" variant="caption" color="text.secondary">({emp.email})</Typography>
-                          </Typography>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <Button 
-                    type="submit" 
-                    variant="contained" 
-                    color="primary" 
-                    fullWidth 
-                    size="large"
-                    sx={{ mt: 3, py: 1.5 }}
-                  >
-                    Publish Task Payload
-                  </Button>
-                </form>
-              </Box>
-            )}
-
-            {/* PANEL 1: Interactive Employee Management Engine */}
-            {activeTab === 1 && (
-              <Box sx={{ p: 0 }}>
-                {/* Clean, minimalist flat header bar replacing saturated blue/green blocks */}
-                <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '1.1rem' }}>
-                    Active Resource Accounts
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                    Destructive personnel revocation management console.
-                  </Typography>
-                </Box>
-
-                {employees.length === 0 ? (
-                  <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                    <Typography variant="body2">No active personnel detected in database streams.</Typography>
-                  </Box>
-                ) : (
-                  <List sx={{ p: 0 }}>
-                    {employees.map((emp, index) => (
-                      <React.Fragment key={emp.id}>
-                        <ListItem
-                          secondaryAction={
-                            <IconButton 
-                              edge="end" 
-                              aria-label="delete"
-                              onClick={() => confirmRevocation(emp)}
-                              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'transparent' } }}
-                            >
-                              <DeleteOutlineIcon sx={{ fontSize: 20 }} />
-                            </IconButton>
-                          }
-                          sx={{ py: 2, px: 3, '&:hover': { bgcolor: 'background.default' } }}
-                        >
-                          <ListItemAvatar>
-                            {/* Sophisticated muted grayscale avatar fills */}
-                            <Avatar sx={{ bgcolor: '#f1f5f9', color: 'text.primary', border: '1px solid', borderColor: 'divider', fontWeight: 600, fontSize: '0.9rem' }}>
-                              {emp.name.charAt(0)}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={<Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{emp.name}</Typography>}
-                            secondary={<Typography variant="caption" color="text.secondary">{emp.email}</Typography>}
-                          />
-                        </ListItem>
-                        {index < employees.length - 1 && <Divider component="li" />}
-                      </React.Fragment>
-                    ))}
-                  </List>
-                )}
-              </Box>
-            )}
-
-          </Paper>
-        </Grid>
-
-        {/* RIGHT COLUMN: The Live Task Board */}
-        <Grid item xs={12} md={7}>
-          <Typography 
-            variant="h6" 
-            gutterBottom 
-            sx={{ 
-              fontWeight: 600, 
-              color: 'text.primary',
-              letterSpacing: '-0.01em',
-              mb: 2 
-            }}
-          >
-            Active Execution Roster
+    <Card elevation={0} sx={{
+      border: '1px solid', borderColor: 'divider',
+      borderLeft: '4px solid', borderLeftColor: s.color,
+      borderRadius: 2, bgcolor: CARD_BG,
+      transition: 'box-shadow .15s',
+      '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,.08)' }
+    }}>
+      <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+        {/* Header row */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1.3, flex: 1, pr: 2 }}>
+            {task.title}
           </Typography>
+          <Chip
+            icon={<Icon sx={{ fontSize: '14px !important', color: `${s.color} !important` }} />}
+            label={s.label}
+            size="small"
+            sx={{
+              bgcolor: s.bg, color: s.color, border: '1px solid', borderColor: s.border,
+              fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.04em',
+              height: 24, flexShrink: 0,
+              '& .MuiChip-label': { px: 1 }
+            }}
+          />
+        </Box>
 
-          {tasks.length === 0 ? (
-            <Paper elevation={0} sx={{ p: 5, textAlign: 'center', color: 'text.secondary' }}>
-              <Typography variant="body2">No tasks exist in the database yet. Use the switchboard panel on the left to create one!</Typography>
-            </Paper>
-          ) : (
-            <Grid container spacing={2}>
-              {tasks.map((task) => (
-                <Grid item xs={12} key={task.id}>
-                  
-                  {/* Clean, flat card layout enforcing border indicators */}
-                  <Card 
-                    elevation={0} 
-                    sx={{ 
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderLeft: '4px solid',
-                      borderLeftColor: task.status === 'completed' ? 'secondary.main' : 'primary.main',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.3 }}>
-                          {task.title}
-                        </Typography>
-                        
-                        {/* Calibrated status pill */}
-                        <Chip 
-                          label={task.status} 
-                          sx={{ 
-                            bgcolor: task.status === 'completed' ? '#ecfdf5' : '#f1f5f9',
-                            color: task.status === 'completed' ? '#059669' : 'text.primary',
-                            border: '1px solid',
-                            borderColor: task.status === 'completed' ? '#a7f3d0' : 'divider',
-                            textTransform: 'uppercase', 
-                            fontWeight: 700, 
-                            fontSize: '0.65rem',
-                            letterSpacing: '0.05em',
-                            height: 22
-                          }}
-                        />
-                      </Box>
-                      
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.6 }}>
-                        {task.description || 'No description provided.'}
-                      </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.65, minHeight: 40 }}>
+          {task.description || 'No description provided.'}
+        </Typography>
 
-                      {/* Displaying assigned employees inside flat containers */}
-                      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
-                        <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 600, color: 'text.secondary', letterSpacing: '0.05em' }}>
-                          ASSIGNED NODES
-                        </Typography>
-                        
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {task.users && task.users.length > 0 ? (
-                            task.users.map(user => (
-                              <Chip 
-                                key={user.id} 
-                                label={user.name} 
-                                size="small" 
-                                variant="outlined"
-                                sx={{ borderColor: 'divider', color: 'text.primary', fontWeight: 500, bgcolor: 'background.default' }} 
-                              />
-                            ))
-                          ) : (
-                            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                              Unassigned / Resource Dropped
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
+        {/* Progress bar */}
+        <Box sx={{ mb: 2.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              Progress
+            </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: s.color }}>{progress}%</Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={progress}
+            sx={{
+              height: 6, borderRadius: 3, bgcolor: alpha(s.color, 0.12),
+              '& .MuiLinearProgress-bar': { bgcolor: s.color, borderRadius: 3 }
+            }}
+          />
+        </Box>
 
-                    </CardContent>
-                  </Card>
+        {/* Assigned employees */}
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
+          <Typography variant="caption" sx={{
+            display: 'block', mb: 1, fontWeight: 600, color: 'text.secondary',
+            letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem'
+          }}>
+            Assigned To
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {task.users && task.users.length > 0 ? (
+              task.users.map(u => (
+                <Tooltip key={u.id} title={u.email || u.name}>
+                  <Chip
+                    avatar={<Avatar sx={{ bgcolor: ACCENT, color: '#fff !important', fontSize: '0.65rem', fontWeight: 700 }}>{u.name.charAt(0)}</Avatar>}
+                    label={u.name}
+                    size="small"
+                    variant="outlined"
+                    sx={{ borderColor: 'divider', color: 'text.primary', fontWeight: 500, bgcolor: SURFACE, fontSize: '0.75rem' }}
+                  />
+                </Tooltip>
+              ))
+            ) : (
+              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>Unassigned</Typography>
+            )}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
 
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </Grid>
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function AdminDashboard() {
+  const [tasks, setTasks]             = useState([]);
+  const [employees, setEmployees]     = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [errorMessage, setError]      = useState('');
+  const [successMessage, setSuccess]  = useState('');
+  const [activeTab, setActiveTab]     = useState(0);
 
+  // Task form
+  const [title, setTitle]                 = useState('');
+  const [description, setDescription]     = useState('');
+  const [selectedUsers, setSelectedUsers] = useState([]);
+
+  // Employee list controls
+  const [empSearch, setEmpSearch]     = useState('');
+  const [empSort, setEmpSort]         = useState('name');
+  const [empSortDir, setEmpSortDir]   = useState('asc');
+
+  // Task list controls
+  const [taskSearch, setTaskSearch]         = useState('');
+  const [taskStatusFilter, setTaskStatus]   = useState('all');
+
+  // Delete modal
+  const [deleteOpen, setDeleteOpen]         = useState(false);
+  const [targetEmployee, setTarget]         = useState(null);
+  const [processingDelete, setDeleting]     = useState(false);
+
+  const token = localStorage.getItem('token');
+  const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [uRes, tRes] = await Promise.all([
+        axios.get('http://127.0.0.1:8000/api/users', axiosConfig),
+        axios.get('http://127.0.0.1:8000/api/tasks', axiosConfig),
+      ]);
+      setEmployees(uRes.data.users);
+      setTasks(tRes.data.tasks);
+    } catch {
+      setError('Failed to load dashboard data. Check your network connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Derived lists ─────────────────────────────────────────────────────────
+  const filteredEmployees = useMemo(() => {
+    let list = [...employees];
+    if (empSearch) list = list.filter(e =>
+      e.name.toLowerCase().includes(empSearch.toLowerCase()) ||
+      e.email.toLowerCase().includes(empSearch.toLowerCase())
+    );
+    list.sort((a, b) => {
+      const aVal = empSort === 'name' ? a.name : a.email;
+      const bVal = empSort === 'name' ? b.name : b.email;
+      return empSortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    });
+    return list;
+  }, [employees, empSearch, empSort, empSortDir]);
+
+  const filteredTasks = useMemo(() => {
+    let list = [...tasks];
+    if (taskSearch) list = list.filter(t =>
+      t.title.toLowerCase().includes(taskSearch.toLowerCase()) ||
+      (t.description || '').toLowerCase().includes(taskSearch.toLowerCase())
+    );
+    if (taskStatusFilter !== 'all') list = list.filter(t => normaliseStatus(t.status) === taskStatusFilter);
+    return list;
+  }, [tasks, taskSearch, taskStatusFilter]);
+
+  const stats = useMemo(() => ({
+    total:      tasks.length,
+    completed:  tasks.filter(t => normaliseStatus(t.status) === 'completed').length,
+    inProgress: tasks.filter(t => normaliseStatus(t.status) === 'in-progress').length,
+    pending:    tasks.filter(t => normaliseStatus(t.status) === 'pending').length,
+  }), [tasks]);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess('');
+    if (!selectedUsers.length) { setError('Assign at least one employee to this task.'); return; }
+    try {
+      await axios.post('http://127.0.0.1:8000/api/tasks', { title, description, user_ids: selectedUsers }, axiosConfig);
+      setSuccess('Task created and assigned successfully!');
+      setTitle(''); setDescription(''); setSelectedUsers([]);
+      fetchData();
+    } catch {
+      setError('Failed to create task. Please check the form values.');
+    }
+  };
+
+  const confirmDelete  = (emp) => { setTarget(emp); setDeleteOpen(true); };
+
+  const executeDelete = async () => {
+    if (!targetEmployee) return;
+    setError(''); setSuccess(''); setDeleting(true);
+    try {
+      await axios.delete(`http://127.0.0.1:8000/api/users/${targetEmployee.id}`, axiosConfig);
+      setSuccess(`${targetEmployee.name} has been removed successfully.`);
+      setEmployees(prev => prev.filter(e => e.id !== targetEmployee.id));
+      setTasks(prev => prev.map(t => ({ ...t, users: t.users?.filter(u => u.id !== targetEmployee.id) ?? [] })));
+    } catch {
+      setError('Failed to remove employee. Please try again.');
+    } finally {
+      setDeleting(false); setDeleteOpen(false); setTarget(null);
+    }
+  };
+
+  const toggleSort = (col) => {
+    if (empSort === col) setEmpSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setEmpSort(col); setEmpSortDir('asc'); }
+  };
+
+  // ── Skeleton loaders ──────────────────────────────────────────────────────
+  if (loading) return (
+    <Box sx={{ p: 4, maxWidth: 1280, mx: 'auto' }}>
+      <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        {[1,2,3,4].map(i => <Grid item xs={6} md={3} key={i}><Skeleton variant="rounded" height={80} /></Grid>)}
+      </Grid>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={5}><Skeleton variant="rounded" height={500} /></Grid>
+        <Grid item xs={12} md={7}><Skeleton variant="rounded" height={500} /></Grid>
+      </Grid>
+    </Box>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <Box sx={{
+      p: { xs: 2, sm: 3, md: 4 },
+      bgcolor: SURFACE,
+      minHeight: '100vh',
+      boxSizing: 'border-box',
+      maxWidth: 1280, mx: 'auto',
+    }}>
+      {/* ── Page header ── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: NAVY, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            Admin Dashboard
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Manage your team and track task execution
+          </Typography>
+        </Box>
+        <Tooltip title="Refresh data">
+          <IconButton
+            onClick={fetchData}
+            sx={{ color: 'text.secondary', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}
+          >
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* ── Alerts ── */}
+      {errorMessage   && <Alert severity="error"   onClose={() => setError('')}   sx={{ mb: 2.5, borderRadius: 1.5 }}>{errorMessage}</Alert>}
+      {successMessage && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2.5, borderRadius: 1.5 }}>{successMessage}</Alert>}
+
+      {/* ── Stat cards ── */}
+      <Grid container spacing={2} sx={{ mb: 3.5 }}>
+        <Grid item xs={6} sm={3}><StatCard icon={TaskAltIcon}    label="Total Tasks"   value={stats.total}      accent={ACCENT}    /></Grid>
+        <Grid item xs={6} sm={3}><StatCard icon={CheckCircleIcon} label="Completed"    value={stats.completed}  accent="#059669"   /></Grid>
+        <Grid item xs={6} sm={3}><StatCard icon={InProgressIcon}  label="In Progress"  value={stats.inProgress} accent="#d97706"   /></Grid>
+        <Grid item xs={6} sm={3}><StatCard icon={PeopleIcon}      label="Employees"    value={employees.length} accent={TEAL}      /></Grid>
       </Grid>
 
-      {/* --- DESTRUCTIVE SAFETY MODAL: Clean, Flat Overrides --- */}
+      {/* ── Main two-column layout ── */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '420px 1fr' },
+        gap: 3,
+        alignItems: 'start',
+      }}>
+
+        {/* ── LEFT: Tabs panel ── */}
+        <Paper elevation={0} sx={{
+          border: '1px solid', borderColor: 'divider',
+          borderRadius: 2, bgcolor: CARD_BG,
+          overflow: 'hidden',
+          // Keep it from growing taller than the right column
+          minWidth: 0,
+        }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => setActiveTab(v)}
+            variant="fullWidth"
+            sx={{
+              bgcolor: NAVY,
+              '& .MuiTab-root': {
+                color: 'rgba(255,255,255,0.55)', fontWeight: 600,
+                fontSize: '0.8rem', minHeight: 48,
+                textTransform: 'none', letterSpacing: '0.02em',
+              },
+              '& .Mui-selected': { color: '#ffffff !important' },
+              '& .MuiTabs-indicator': { bgcolor: TEAL, height: 3 },
+            }}
+          >
+            <Tab
+              icon={<AssignmentIcon sx={{ fontSize: 17 }} />}
+              iconPosition="start"
+              label="Create Task"
+            />
+            <Tab
+              icon={
+                <Badge
+                  badgeContent={employees.length}
+                  color="primary"
+                  sx={{ '& .MuiBadge-badge': { bgcolor: TEAL, color: NAVY, fontWeight: 700, fontSize: '0.6rem' } }}
+                >
+                  <BadgeIcon sx={{ fontSize: 17 }} />
+                </Badge>
+              }
+              iconPosition="start"
+              label="Employees"
+            />
+          </Tabs>
+
+          {/* PANEL 0: Create Task */}
+          {activeTab === 0 && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: NAVY, mb: 2.5 }}>
+                New Task Assignment
+              </Typography>
+
+              <Box component="form" onSubmit={handleCreateTask}>
+                <TextField
+                  label="Task Title" fullWidth required size="small"
+                  value={title} onChange={e => setTitle(e.target.value)}
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  label="Task Description" fullWidth multiline rows={3} size="small"
+                  value={description} onChange={e => setDescription(e.target.value)}
+                  sx={{ mb: 2 }}
+                />
+                <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+                  <InputLabel>Assign Personnel</InputLabel>
+                  <Select
+                    multiple value={selectedUsers}
+                    onChange={e => setSelectedUsers(e.target.value)}
+                    label="Assign Personnel"
+                    renderValue={sel => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {sel.map(id => {
+                          const emp = employees.find(e => e.id === id);
+                          return (
+                            <Chip
+                              key={id} label={emp?.name ?? id} size="small" variant="outlined"
+                              sx={{ borderColor: 'divider', fontSize: '0.72rem', height: 22 }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    )}
+                  >
+                    {employees.map(emp => (
+                      <MenuItem key={emp.id} value={emp.id}>
+                        <ListItemAvatar sx={{ minWidth: 36 }}>
+                          <Avatar sx={{ width: 26, height: 26, bgcolor: ACCENT, fontSize: '0.7rem', fontWeight: 700 }}>
+                            {emp.name.charAt(0)}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={<Typography variant="body2" fontWeight={600}>{emp.name}</Typography>}
+                          secondary={<Typography variant="caption" color="text.secondary">{emp.email}</Typography>}
+                        />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Button
+                  type="submit" variant="contained" fullWidth size="large"
+                  startIcon={<AddIcon />}
+                  sx={{
+                    bgcolor: NAVY, color: '#fff', fontWeight: 700, letterSpacing: '0.02em',
+                    borderRadius: 1.5, py: 1.4, textTransform: 'none',
+                    '&:hover': { bgcolor: NAVY3 },
+                    boxShadow: 'none',
+                  }}
+                >
+                  Publish Task
+                </Button>
+              </Box>
+            </Box>
+          )}
+
+          {/* PANEL 1: Employee management */}
+          {activeTab === 1 && (
+            <Box>
+              {/* Controls bar */}
+              <Box sx={{
+                p: 2,
+                borderBottom: '1px solid', borderColor: 'divider',
+                display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap',
+              }}>
+                <TextField
+                  placeholder="Search employees…" size="small" value={empSearch}
+                  onChange={e => setEmpSearch(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      </InputAdornment>
+                    )
+                  }}
+                  sx={{ flex: 1, minWidth: 0 }}
+                />
+                <FormControl size="small" sx={{ width: 130, flexShrink: 0 }}>
+                  <Select value={empSort} onChange={e => setEmpSort(e.target.value)} displayEmpty>
+                    <MenuItem value="name">Sort: Name</MenuItem>
+                    <MenuItem value="email">Sort: Email</MenuItem>
+                  </Select>
+                </FormControl>
+                <Tooltip title={`Direction: ${empSortDir === 'asc' ? 'A → Z' : 'Z → A'}`}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setEmpSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                    sx={{
+                      border: '1px solid', borderColor: 'divider',
+                      borderRadius: 1, width: 34, height: 34, flexShrink: 0,
+                    }}
+                  >
+                    <SortIcon sx={{
+                      fontSize: 16,
+                      transform: empSortDir === 'desc' ? 'scaleY(-1)' : 'none',
+                      transition: 'transform .2s',
+                    }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              {/* Results count */}
+              <Box sx={{ px: 2.5, py: 1.25, bgcolor: SURFACE, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                  {filteredEmployees.length} of {employees.length} employees
+                </Typography>
+              </Box>
+
+              {/* Employee table */}
+              {filteredEmployees.length === 0 ? (
+                <Box sx={{ p: 5, textAlign: 'center' }}>
+                  <PeopleIcon sx={{ fontSize: 40, color: 'divider', mb: 1 }} />
+                  <Typography variant="body2" color="text.secondary">No employees match your search.</Typography>
+                </Box>
+              ) : (
+                <TableContainer sx={{ maxHeight: 420 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{
+                          bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem',
+                          letterSpacing: '0.06em', textTransform: 'uppercase',
+                          color: 'text.secondary', pl: 2.5,
+                        }}>
+                          <TableSortLabel
+                            active={empSort === 'name'}
+                            direction={empSort === 'name' ? empSortDir : 'asc'}
+                            onClick={() => toggleSort('name')}
+                          >
+                            Employee
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{
+                          bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem',
+                          letterSpacing: '0.06em', textTransform: 'uppercase',
+                          color: 'text.secondary',
+                        }}>
+                          <TableSortLabel
+                            active={empSort === 'email'}
+                            direction={empSort === 'email' ? empSortDir : 'asc'}
+                            onClick={() => toggleSort('email')}
+                          >
+                            Contact
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ bgcolor: SURFACE, width: 48 }} />
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredEmployees.map(emp => {
+                        const taskCount = tasks.filter(t => t.users?.some(u => u.id === emp.id)).length;
+                        return (
+                          <TableRow
+                            key={emp.id}
+                            sx={{ '&:hover': { bgcolor: SURFACE }, '&:last-child td': { border: 0 } }}
+                          >
+                            <TableCell sx={{ py: 1.5, pl: 2.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                                <Avatar sx={{
+                                  width: 32, height: 32,
+                                  bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
+                                  fontSize: '0.8rem', fontWeight: 700,
+                                  border: '1.5px solid', borderColor: alpha(ACCENT, 0.25),
+                                  flexShrink: 0,
+                                }}>
+                                  {emp.name.charAt(0)}
+                                </Avatar>
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography
+                                    variant="body2" fontWeight={600} color={NAVY}
+                                    sx={{ lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                  >
+                                    {emp.name}
+                                  </Typography>
+                                  <Chip
+                                    label={`${taskCount} task${taskCount !== 1 ? 's' : ''}`}
+                                    size="small"
+                                    sx={{
+                                      height: 16, fontSize: '0.6rem', fontWeight: 600,
+                                      bgcolor: alpha(TEAL, 0.12), color: '#059669', mt: 0.25,
+                                      '& .MuiChip-label': { px: 0.75 },
+                                    }}
+                                  />
+                                </Box>
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{ maxWidth: 140 }}>
+                              <Typography
+                                variant="caption" color="text.secondary"
+                                sx={{
+                                  display: 'flex', alignItems: 'center', gap: 0.5,
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <EmailIcon sx={{ fontSize: 12, flexShrink: 0 }} />{emp.email}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Tooltip title="Remove employee">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => confirmDelete(emp)}
+                                  sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'transparent' } }}
+                                >
+                                  <DeleteOutlineIcon sx={{ fontSize: 17 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          )}
+        </Paper>
+
+        {/* ── RIGHT: Task board — always stays right ── */}
+{/* ── RIGHT: Task board — Fixed height with independent vertical scroll ── */}
+        <Box sx={{ 
+          minWidth: 0, 
+          width: '100%',
+          
+          // 1. SCROLL BOUNDARY: Force a strict height and enable auto-scrolling
+          height: 'calc(100vh - 240px)', // Dynamically sizes to fit the screen minus headers
+          minHeight: 500,                // Prevents the board from squishing too small on short screens
+          overflowY: 'auto',             // Enables vertical scrolling when content overflows
+          pr: 1.5,                       // Adds a tiny bit of padding so cards don't rub against the scrollbar
+          
+          // 2. PREMIUM SCROLLBAR STYLING (Optional but highly recommended for enterprise UIs)
+          '&::-webkit-scrollbar': { width: '6px' },
+          '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+          '&::-webkit-scrollbar-thumb': { 
+            bgcolor: 'rgba(0,0,0,0.08)', 
+            borderRadius: '4px',
+            '&:hover': { bgcolor: 'rgba(0,0,0,0.15)' }
+          },
+        }}>
+          
+          {/* Filter / search bar (Sticky positioning optional: add position:'sticky', top:0, bgcolor:SURFACE, zIndex:1 if you want this bar to stay visible while scrolling!) */}
+          <Box sx={{
+            display: 'flex', gap: 1.5, mb: 2.5,
+            flexWrap: 'wrap', alignItems: 'center',
+          }}>
+            <TextField
+              placeholder="Search tasks…" size="small" value={taskSearch}
+              onChange={e => setTaskSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  </InputAdornment>
+                )
+              }}
+              sx={{ flex: '1 1 180px', minWidth: 0 }}
+            />
+            <ToggleButtonGroup
+              value={taskStatusFilter}
+              exclusive
+              onChange={(_, v) => v && setTaskStatus(v)}
+              size="small"
+              sx={{
+                flexShrink: 0,
+                '& .MuiToggleButton-root': {
+                  textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                  px: 1.5, py: 0.6,
+                  border: '1px solid', borderColor: 'divider', color: 'text.secondary',
+                },
+                '& .Mui-selected': {
+                  bgcolor: `${NAVY} !important`,
+                  color: '#fff !important',
+                  borderColor: `${NAVY} !important`,
+                },
+              }}
+            >
+              <ToggleButton value="all">All ({stats.total})</ToggleButton>
+              <ToggleButton value="pending">Pending</ToggleButton>
+              <ToggleButton value="in-progress">Active</ToggleButton>
+              <ToggleButton value="completed">Done</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          {/* Task count */}
+          <Typography
+            variant="caption" color="text.secondary" fontWeight={600}
+            sx={{ display: 'block', mb: 1.5, letterSpacing: '0.04em' }}
+          >
+            SHOWING {filteredTasks.length} TASK{filteredTasks.length !== 1 ? 'S' : ''}
+          </Typography>
+
+          {/* Task cards */}
+          {filteredTasks.length === 0 ? (
+            <Paper elevation={0} sx={{
+              p: 6, textAlign: 'center',
+              border: '1px solid', borderColor: 'divider', borderRadius: 2,
+            }}>
+              <TaskAltIcon sx={{ fontSize: 48, color: 'divider', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                {tasks.length === 0
+                  ? 'No tasks yet. Create one using the panel on the left!'
+                  : 'No tasks match your current filters.'}
+              </Typography>
+            </Paper>
+          ) : (
+            <Stack spacing={2}>
+              {filteredTasks.map(task => <TaskCard key={task.id} task={task} />)}
+            </Stack>
+          )}
+        </Box>
+
+      </Box>{/* end main grid */}
+
+      {/* ── Delete confirmation modal ── */}
       <Dialog
-        open={deleteDialogOpen}
-        onClose={() => !processingDelete && setDeleteDialogOpen(false)}
+        open={deleteOpen}
+        onClose={() => !processingDelete && setDeleteOpen(false)}
         PaperProps={{
           elevation: 0,
-          sx: { border: '1px solid', borderColor: 'divider', borderRadius: 2, maxWidth: 450 }
+          sx: { border: '1px solid', borderColor: 'divider', borderRadius: 2, maxWidth: 440 }
         }}
       >
-        <DialogTitle sx={{ color: 'text.primary', fontWeight: 700, pb: 1 }}>
-          Confirm Revocation of Account?
+        <DialogTitle sx={{ color: NAVY, fontWeight: 700, pb: 1 }}>
+          Remove Employee?
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
-          <DialogContentText sx={{ color: 'text.secondary', fontSize: '0.875rem', lineHeight: 1.5 }}>
-            You are about to execute a permanent database purge for personnel token: 
-            <Typography component="span" sx={{ fontWeight: 600, color: 'text.primary', display: 'block', my: 1 }}>
-              {targetEmployee?.name} ({targetEmployee?.email})
-            </Typography>
-            This action instantly destroys their session tokens, severs their access bridges, and unlinks them from active execution payloads.
+          <DialogContentText sx={{ color: 'text.secondary', fontSize: '0.875rem', lineHeight: 1.6 }}>
+            You are about to permanently remove:
+          </DialogContentText>
+          {targetEmployee && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              my: 2, p: 2, bgcolor: SURFACE,
+              borderRadius: 1.5, border: '1px solid', borderColor: 'divider',
+            }}>
+              <Avatar sx={{ bgcolor: alpha(ACCENT, 0.15), color: ACCENT, fontWeight: 700 }}>
+                {targetEmployee.name.charAt(0)}
+              </Avatar>
+              <Box>
+                <Typography variant="body2" fontWeight={700} color={NAVY}>{targetEmployee.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{targetEmployee.email}</Typography>
+              </Box>
+            </Box>
+          )}
+          <DialogContentText sx={{ color: 'text.secondary', fontSize: '0.875rem', lineHeight: 1.6 }}>
+            This will unlink them from all active tasks. This action cannot be undone.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, pt: 0 }}>
-          <Button 
-            onClick={() => setDeleteDialogOpen(false)} 
-            disabled={processingDelete} 
-            sx={{ color: 'text.secondary', fontWeight: 500 }}
+        <DialogActions sx={{ px: 3, pb: 3, pt: 0, gap: 1 }}>
+          <Button
+            onClick={() => setDeleteOpen(false)} disabled={processingDelete}
+            sx={{ color: 'text.secondary', fontWeight: 500, textTransform: 'none' }}
           >
-            Abort Operation
+            Cancel
           </Button>
-          <Button 
-            onClick={executeEmployeeRevocation} 
-            variant="contained" 
-            disabled={processingDelete}
-            sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' }, color: 'white' }}
-            autoFocus
+          <Button
+            onClick={executeDelete} variant="contained" disabled={processingDelete} autoFocus
+            sx={{
+              bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' },
+              color: '#fff', fontWeight: 600, textTransform: 'none',
+              borderRadius: 1.5, boxShadow: 'none',
+            }}
           >
-            {processingDelete ? 'Purging Node...' : 'Revoke Access'}
+            {processingDelete ? 'Removing…' : 'Remove Employee'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -440,5 +778,3 @@ function AdminDashboard() {
     </Box>
   );
 }
-
-export default AdminDashboard;
