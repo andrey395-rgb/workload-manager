@@ -68,4 +68,29 @@ class UserController extends Controller
             'avatar_url' => $user->getFirstMediaUrl('avatar')
         ], 200);
     }
+    public function updatePhoto(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        $request->validate(['profile_photo' => 'required|image|mimes:jpeg,png,jpg|max:2048']);
+        $user->clearMediaCollection('avatar');
+        $user->addMediaFromRequest('profile_photo')->toMediaCollection('avatar');
+        return response()->json(['avatar_url' => $user->getFirstMediaUrl('avatar')]);
+    }
+    public function updateRole(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        $request->validate([
+            'role' => 'required|string|in:admin,employee',
+        ]);
+
+        // Remove all current roles and assign the new one
+        $user->syncRoles([$request->role]);
+
+        return response()->json([
+            'message' => 'Role updated successfully',
+            'user' => $user,
+            'role' => $request->role,
+        ], 200);
+    }
 }

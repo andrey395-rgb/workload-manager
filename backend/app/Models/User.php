@@ -44,7 +44,7 @@ class User extends Authenticatable implements HasMedia
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
-
+    
     // Define the Many-to-Many relationship with Tasks
     public function tasks()
     {

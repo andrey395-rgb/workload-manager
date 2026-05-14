@@ -24,11 +24,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Update profile details and upload a profile photo
     Route::patch('/profile/{id}', [UserController::class, 'updateProfile']);
+    Route::post('/profile/{id}/photo', [UserController::class, 'updatePhoto']);
         // Example: A route to log out the user (revoke the token)
     // Example: A route to get the currently logged-in user's details
     Route::get('/me', function (Request $request) {
         return $request->user();
     });
     Route::get('/tasks', [TaskController::class, 'index']);
-
+    Route::patch('/users/{id}/role', [UserController::class, 'updateRole'])
+    ->middleware('role:admin');
 });

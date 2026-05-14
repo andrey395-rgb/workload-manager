@@ -1,205 +1,407 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-
-// Import Material UI components for a flat, clean enterprise layout
-import { 
-  Box, Typography, Paper, Grid, Card, CardContent, 
-  Button, Chip, Alert, CircularProgress 
+import {
+  Box, Typography, Paper, Alert, Chip, Button, LinearProgress,
+  Card, CardContent, Stack, Skeleton, Tooltip, IconButton,
+  InputAdornment, TextField, ToggleButton, ToggleButtonGroup,
+  Avatar, alpha,
 } from '@mui/material';
-
-import { 
-  PlayArrow as PlayArrowIcon, 
-  CheckCircle as CheckCircleIcon 
+import {
+  CheckCircle as CheckCircleIcon,
+  RadioButtonUnchecked as PendingIcon,
+  HourglassEmpty as InProgressIcon,
+  PlayArrow as PlayArrowIcon,
+  TaskAlt as TaskAltIcon,
+  TrendingUp as TrendingUpIcon,
+  Refresh as RefreshIcon,
+  Search as SearchIcon,
+  Assignment as AssignmentIcon,
 } from '@mui/icons-material';
 
-function EmployeeDashboard() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+// ─── Design tokens (identical to AdminDashboard) ──────────────────────────────
+const NAVY    = '#1a1f36';
+const NAVY2   = '#252b45';
+const NAVY3   = '#2f3655';
+const ACCENT  = '#6c63ff';
+const TEAL    = '#00d4b4';
+const SURFACE = '#f8f9fc';
+const CARD_BG = '#ffffff';
+
+const STATUS_MAP = {
+  completed:   { label: 'Completed',   color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: CheckCircleIcon },
+  in_progress: { label: 'In Progress', color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: InProgressIcon },
+  pending:     { label: 'Pending',     color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', icon: PendingIcon },
+};
+
+const normaliseStatus = (s = 'pending') => {
+  const v = s.toLowerCase().replace('-', '_');
+  return STATUS_MAP[v] ? v : 'pending';
+};
+
+// ─── Stat Card (same as AdminDashboard) ───────────────────────────────────────
+function StatCard({ icon: Icon, label, value, accent }) {
+  return (
+    <Card elevation={0} sx={{
+      border: '1px solid', borderColor: 'divider',
+      borderRadius: 2, bgcolor: CARD_BG, height: '100%',
+    }}>
+      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 1.5,
+            bgcolor: alpha(accent, 0.12),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Icon sx={{ fontSize: 20, color: accent }} />
+          </Box>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1 }}>{value}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{label}</Typography>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Task Card ────────────────────────────────────────────────────────────────
+function TaskCard({ task, onUpdateStatus }) {
+  const statusKey = normaliseStatus(task.status);
+  const s = STATUS_MAP[statusKey];
+  const Icon = s.icon;
+
+  return (
+    <Card elevation={0} sx={{
+      border: '1px solid', borderColor: 'divider',
+      borderLeft: '4px solid', borderLeftColor: s.color,
+      borderRadius: 2, bgcolor: CARD_BG,
+      transition: 'box-shadow .15s',
+      '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,.08)' },
+    }}>
+      <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+        {/* Header row */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1.3, flex: 1, pr: 2 }}>
+            {task.title}
+          </Typography>
+          <Chip
+            icon={<Icon sx={{ fontSize: '14px !important', color: `${s.color} !important` }} />}
+            label={s.label}
+            size="small"
+            sx={{
+              bgcolor: s.bg, color: s.color, border: '1px solid', borderColor: s.border,
+              fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.04em',
+              height: 24, flexShrink: 0,
+              '& .MuiChip-label': { px: 1 },
+            }}
+          />
+        </Box>
+
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.65 }}>
+          {task.description || 'No description provided.'}
+        </Typography>
+
+        {/* Action footer */}
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          {statusKey === 'pending' && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PlayArrowIcon sx={{ fontSize: 14 }} />}
+              onClick={() => onUpdateStatus(task.id, 'in_progress')}
+              sx={{
+                fontSize: '0.75rem', fontWeight: 700, textTransform: 'none',
+                borderColor: ACCENT, color: ACCENT, borderRadius: 1.5,
+                '&:hover': { bgcolor: alpha(ACCENT, 0.06), borderColor: ACCENT },
+              }}
+            >
+              Start Task
+            </Button>
+          )}
+          {statusKey === 'in_progress' && (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
+              onClick={() => onUpdateStatus(task.id, 'completed')}
+              sx={{
+                fontSize: '0.75rem', fontWeight: 700, textTransform: 'none',
+                bgcolor: '#059669', color: '#fff', borderRadius: 1.5, boxShadow: 'none',
+                '&:hover': { bgcolor: '#047857', boxShadow: 'none' },
+              }}
+            >
+              Mark Done
+            </Button>
+          )}
+          {statusKey === 'completed' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <CheckCircleIcon sx={{ fontSize: 15, color: '#059669' }} />
+              <Typography variant="caption" sx={{ fontWeight: 700, color: '#059669', letterSpacing: '0.04em' }}>
+                Completed
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function EmployeeDashboard() {
+  const [tasks, setTasks]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState('');
+  const [success, setSuccess]   = useState('');
+
+  const [taskSearch, setTaskSearch]       = useState('');
+  const [taskStatusFilter, setTaskStatus] = useState('active');
 
   const token = localStorage.getItem('token');
+  const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
 
-  const axiosConfig = {
-    headers: { Authorization: `Bearer ${token}` }
-  };
-
-  useEffect(() => {
-    fetchMyTasks();
-  }, []);
+  useEffect(() => { fetchMyTasks(); }, []);
 
   const fetchMyTasks = async () => {
     setLoading(true);
+    setError('');
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/tasks/my', axiosConfig);
-      setTasks(response.data.tasks);
-    } catch (error) {
-      setErrorMessage('Failed to load your assigned workload stream. Verify network status.');
+      const res = await axios.get('http://127.0.0.1:8000/api/tasks/my', axiosConfig);
+      setTasks(res.data.tasks);
+    } catch {
+      setError('Failed to load tasks. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleUpdateStatus = async (taskId, newStatus) => {
-    setErrorMessage('');
-    setSuccessMessage('');
-
+    setError(''); setSuccess('');
     try {
-      await axios.patch(`http://127.0.0.1:8000/api/tasks/${taskId}/status`, {
-        status: newStatus
-      }, axiosConfig);
-
-      setSuccessMessage(`Execution status successfully transitioned to ${newStatus}.`);
-
-      // Optimistic UI update maintaining state synchronicity
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.id === taskId ? { ...task, status: newStatus } : task
-        )
-      );
-
-    } catch (error) {
-      if (error.response && error.response.status === 403) {
-        setErrorMessage('Authorization fault: Modifying this record requires explicit allocation.');
-      } else {
-        setErrorMessage('Status update rejected. Please attempt reconciliation.');
-      }
+      await axios.patch(`http://127.0.0.1:8000/api/tasks/${taskId}/status`, { status: newStatus }, axiosConfig);
+      setSuccess(`Task moved to "${STATUS_MAP[newStatus]?.label}".`);
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      setTimeout(() => setSuccess(''), 3500);
+    } catch (err) {
+      setError(err.response?.status === 403
+        ? "You don't have permission to update this task."
+        : 'Status update failed. Please try again.');
     }
   };
 
+  const stats = useMemo(() => ({
+    total:      tasks.length,
+    completed:  tasks.filter(t => normaliseStatus(t.status) === 'completed').length,
+    inProgress: tasks.filter(t => normaliseStatus(t.status) === 'in_progress').length,
+    pending:    tasks.filter(t => normaliseStatus(t.status) === 'pending').length,
+  }), [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    let list = [...tasks];
+    if (taskSearch) list = list.filter(t =>
+      t.title.toLowerCase().includes(taskSearch.toLowerCase()) ||
+      (t.description || '').toLowerCase().includes(taskSearch.toLowerCase())
+    );
+    if (taskStatusFilter === 'active') list = list.filter(t => normaliseStatus(t.status) !== 'completed');
+    else if (taskStatusFilter !== 'all') list = list.filter(t => normaliseStatus(t.status) === taskStatusFilter);
+    // Sort: in_progress → pending → completed
+    const order = { in_progress: 0, pending: 1, completed: 2 };
+    list.sort((a, b) => (order[normaliseStatus(a.status)] ?? 3) - (order[normaliseStatus(b.status)] ?? 3));
+    return list;
+  }, [tasks, taskSearch, taskStatusFilter]);
+
+  // ── Skeleton loader ───────────────────────────────────────────────────────
+  if (loading) return (
+    <Box sx={{ p: 4, maxWidth: 900, mx: 'auto' }}>
+      <Skeleton variant="text" width={280} height={48} sx={{ mb: 3 }} />
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 4 }}>
+        {[1,2,3,4].map(i => <Skeleton key={i} variant="rounded" height={80} />)}
+      </Box>
+      <Stack spacing={2}>
+        {[1,2,3].map(i => <Skeleton key={i} variant="rounded" height={180} />)}
+      </Stack>
+    </Box>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    // Outer canvas explicitly aligned to the global slate base
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1000, mx: 'auto' }}>
-      
-      {/* Premium typographic alignment */}
-      <Typography 
-        variant="h4" 
-        gutterBottom 
-        sx={{ 
-          fontWeight: 700, 
-          color: 'text.primary',
-          letterSpacing: '-0.02em' 
-        }}
-      >
-        My Work Operations
-      </Typography>
-      
-      <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 4, fontSize: '0.95rem' }}>
-        Track and reconcile operational directives provisioned directly to your account.
-      </Typography>
-
-      {errorMessage && <Alert severity="error" sx={{ mb: 3, borderRadius: 1.5 }}>{errorMessage}</Alert>}
-      {successMessage && <Alert severity="success" sx={{ mb: 3, borderRadius: 1.5 }}>{successMessage}</Alert>}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
-          <CircularProgress size={36} sx={{ color: 'text.secondary' }} />
+    <Box sx={{
+      p: { xs: 2, sm: 3, md: 4 },
+      bgcolor: SURFACE,
+      minHeight: '100vh',
+      boxSizing: 'border-box',
+      maxWidth: 900, mx: 'auto',
+    }}>
+      {/* ── Page header (same pattern as AdminDashboard) ── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: NAVY, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            My Tasks
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Your assigned work and current progress
+          </Typography>
         </Box>
-      ) : tasks.length === 0 ? (
-        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', color: 'text.secondary', border: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="body2">Your workload allocation queue is currently empty.</Typography>
-        </Paper>
-      ) : (
-        <Grid container spacing={3}>
-          {tasks.map((task) => (
-            <Grid item xs={12} md={6} key={task.id}>
-              
-              {/* Uncompromised flat card with absolute 1px divider separation */}
-              <Card 
-                elevation={0} 
-                sx={{ 
-                  height: '100%', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  justifyContent: 'space-between',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderLeft: '3px solid',
-                  borderLeftColor: task.status === 'completed' ? '#10b981' : task.status === 'in_progress' ? '#f59e0b' : '#334155',
-                  borderRadius: 2,
-                  bgcolor: 'background.paper'
-                }}
-              >
-                <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.3 }}>
-                      {task.title}
-                    </Typography>
+        <Tooltip title="Refresh tasks">
+          <IconButton
+            onClick={fetchMyTasks}
+            sx={{ color: 'text.secondary', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}
+          >
+            <RefreshIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
-                    {/* Muted, highly intentional status pill */}
-                    <Chip 
-                      label={task.status} 
-                      sx={{ 
-                        bgcolor: task.status === 'completed' ? '#ecfdf5' : task.status === 'in_progress' ? '#fef3c7' : '#f1f5f9',
-                        color: task.status === 'completed' ? '#059669' : task.status === 'in_progress' ? '#d97706' : 'text.primary',
-                        border: '1px solid',
-                        borderColor: task.status === 'completed' ? '#a7f3d0' : task.status === 'in_progress' ? '#fde68a' : 'divider',
-                        textTransform: 'uppercase', 
-                        fontWeight: 700, 
-                        fontSize: '0.65rem',
-                        letterSpacing: '0.05em',
-                        height: 22
-                      }}
-                    />
-                  </Box>
+      {/* ── Alerts ── */}
+      {error   && <Alert severity="error"   onClose={() => setError('')}   sx={{ mb: 2.5, borderRadius: 1.5 }}>{error}</Alert>}
+      {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2.5, borderRadius: 1.5 }}>{success}</Alert>}
 
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3, lineHeight: 1.6 }}>
-                    {task.description || 'No description provided.'}
-                  </Typography>
+      {/* ── Stat cards (same component as AdminDashboard) ── */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3.5 }}>
+        <StatCard icon={AssignmentIcon}  label="Total Tasks"   value={stats.total}      accent={ACCENT}    />
+        <StatCard icon={CheckCircleIcon} label="Completed"     value={stats.completed}  accent="#059669"   />
+        <StatCard icon={InProgressIcon}  label="In Progress"   value={stats.inProgress} accent="#d97706"   />
+        <StatCard icon={PendingIcon}     label="Pending"       value={stats.pending}    accent="#6366f1"   />
+      </Box>
 
-                  {/* Clean, integrated action layout directly above a 1px rule */}
-                  <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                    
-                    {task.status === 'pending' && (
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        startIcon={<PlayArrowIcon sx={{ fontSize: 16 }} />}
-                        onClick={() => handleUpdateStatus(task.id, 'in_progress')}
-                        sx={{ 
-                          borderColor: 'divider', 
-                          color: 'text.primary',
-                          '&:hover': { borderColor: '#f59e0b', color: '#d97706', bgcolor: '#fffbeb' }
-                        }}
-                      >
-                        Start Directive
-                      </Button>
-                    )}
-
-                    {task.status === 'in_progress' && (
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        startIcon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
-                        onClick={() => handleUpdateStatus(task.id, 'completed')}
-                        sx={{ 
-                          borderColor: 'divider', 
-                          color: 'text.primary',
-                          '&:hover': { borderColor: '#10b981', color: '#059669', bgcolor: '#ecfdf5' }
-                        }}
-                      >
-                        Reconcile Complete
-                      </Button>
-                    )}
-
-                    {task.status === 'completed' && (
-                      <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, letterSpacing: '0.02em' }}>
-                        <CheckCircleIcon sx={{ fontSize: 16 }} /> Directive Finished
-                      </Typography>
-                    )}
-
-                  </Box>
-
-                </CardContent>
-              </Card>
-
-            </Grid>
-          ))}
-        </Grid>
+      {/* ── Overall progress bar ── */}
+      {stats.total > 0 && (
+        <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: CARD_BG, mb: 3.5, px: 3, py: 2.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Overall Completion
+            </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: '#059669' }}>
+              {Math.round((stats.completed / stats.total) * 100)}%
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={Math.round((stats.completed / stats.total) * 100)}
+            sx={{
+              height: 8, borderRadius: 4, bgcolor: alpha('#059669', 0.1),
+              '& .MuiLinearProgress-bar': { bgcolor: '#059669', borderRadius: 4 },
+            }}
+          />
+          <Box sx={{ display: 'flex', gap: 3, mt: 1.5 }}>
+            {[
+              { label: 'Completed', value: stats.completed, color: '#059669' },
+              { label: 'In Progress', value: stats.inProgress, color: '#d97706' },
+              { label: 'Pending', value: stats.pending, color: '#6366f1' },
+            ].map(({ label, value, color }) => (
+              <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                  {value} {label}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Card>
       )}
+
+      {/* ── Task board panel ── */}
+      <Paper elevation={0} sx={{
+        border: '1px solid', borderColor: 'divider',
+        borderRadius: 2, bgcolor: CARD_BG, overflow: 'hidden',
+      }}>
+        {/* Panel header bar (mimics the Tabs header in AdminDashboard) */}
+        <Box sx={{
+          bgcolor: NAVY, px: 3, py: 2,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TaskAltIcon sx={{ fontSize: 17, color: TEAL }} />
+            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', color: '#fff', letterSpacing: '0.02em' }}>
+              Task Board
+            </Typography>
+          </Box>
+          <Box sx={{
+            bgcolor: alpha(TEAL, 0.18), color: TEAL,
+            fontSize: '0.65rem', fontWeight: 700,
+            px: 1.25, py: 0.3, borderRadius: 1,
+            letterSpacing: '0.06em',
+          }}>
+            {stats.total} TASKS
+          </Box>
+        </Box>
+
+        {/* Filter / search bar */}
+        <Box sx={{
+          px: 3, py: 2,
+          display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap',
+          borderBottom: '1px solid', borderColor: 'divider',
+          bgcolor: SURFACE,
+        }}>
+          <TextField
+            placeholder="Search tasks…"
+            size="small"
+            value={taskSearch}
+            onChange={e => setTaskSearch(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ flex: '1 1 180px', minWidth: 0 }}
+          />
+          <ToggleButtonGroup
+            value={taskStatusFilter}
+            exclusive
+            onChange={(_, v) => v && setTaskStatus(v)}
+            size="small"
+            sx={{
+              flexShrink: 0,
+              '& .MuiToggleButton-root': {
+                textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                px: 1.5, py: 0.6,
+                border: '1px solid', borderColor: 'divider', color: 'text.secondary',
+              },
+              '& .Mui-selected': {
+                bgcolor: `${NAVY} !important`,
+                color: '#fff !important',
+                borderColor: `${NAVY} !important`,
+              },
+            }}
+          >
+            <ToggleButton value="active">Active ({stats.inProgress + stats.pending})</ToggleButton>
+            <ToggleButton value="all">All ({stats.total})</ToggleButton>
+            <ToggleButton value="pending">Pending</ToggleButton>
+            <ToggleButton value="in_progress">In Progress</ToggleButton>
+            <ToggleButton value="completed">Done</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+
+        {/* Task count label */}
+        <Box sx={{ px: 3, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            SHOWING {filteredTasks.length} TASK{filteredTasks.length !== 1 ? 'S' : ''}
+          </Typography>
+        </Box>
+
+        {/* Task cards */}
+        <Box sx={{ p: 3 }}>
+          {filteredTasks.length === 0 ? (
+            <Box sx={{ py: 6, textAlign: 'center' }}>
+              <TaskAltIcon sx={{ fontSize: 48, color: 'divider', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                {tasks.length === 0
+                  ? 'No tasks assigned to you yet.'
+                  : 'No tasks match your current filters.'}
+              </Typography>
+            </Box>
+          ) : (
+            <Stack spacing={2}>
+              {filteredTasks.map(task => (
+                <TaskCard key={task.id} task={task} onUpdateStatus={handleUpdateStatus} />
+              ))}
+            </Stack>
+          )}
+        </Box>
+      </Paper>
     </Box>
   );
 }
-
-export default EmployeeDashboard;

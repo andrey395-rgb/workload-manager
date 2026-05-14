@@ -6,9 +6,12 @@ import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import Profile from './pages/Profile';
+import AdminTeam from './pages/AdminTeam';
 import Navbar from './components/Navbar';
+import Projects from './pages/ProjectsPage';
 // 1. Import our new gatekeeper
 import ProtectedRoute from './components/ProtectedRoute';
+
 
 function App() {
   return (
@@ -30,6 +33,23 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route
+          path="/team"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminTeam />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <Projects />
+            </ProtectedRoute>
+          }
+        />
+
 
         {/* Protected Employee Routes */}
         <Route 

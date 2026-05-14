@@ -2,19 +2,17 @@
  * Navbar.jsx — Side Drawer Navigation (MUI 7)
  *
  * Parent layout must be a flex container:
- *   <Box sx={{ display: 'flex', minHeight: '100vh' }}>
- *     <Navbar />
- *     <Box component="main" sx={{ flexGrow: 1, overflow: 'auto' }}>
- *       ...routes...
- *     </Box>
- *   </Box>
- *
- * The permanent Drawer participates in flex layout and will naturally push
- * the main content area as it expands / collapses.
+ * <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+ * <Navbar />
+ * <Box component="main" sx={{ flexGrow: 1, overflow: 'auto' }}>
+ * ...routes...
+ * </Box>
+ * </Box>
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 
 import {
   Box,
@@ -31,33 +29,32 @@ import {
   Avatar,
 } from '@mui/material';
 
-import DashboardRoundedIcon      from '@mui/icons-material/DashboardRounded';
-import AssignmentRoundedIcon     from '@mui/icons-material/AssignmentRounded';
-import CalendarMonthRoundedIcon  from '@mui/icons-material/CalendarMonthRounded';
-import BarChartRoundedIcon       from '@mui/icons-material/BarChartRounded';
-import AccountCircleRoundedIcon  from '@mui/icons-material/AccountCircleRounded';
-import SettingsRoundedIcon       from '@mui/icons-material/SettingsRounded';
+import DashboardRoundedIcon          from '@mui/icons-material/DashboardRounded';
+import AssignmentRoundedIcon         from '@mui/icons-material/AssignmentRounded';
+import CalendarMonthRoundedIcon      from '@mui/icons-material/CalendarMonthRounded';
+import BarChartRoundedIcon           from '@mui/icons-material/BarChartRounded';
+import AccountCircleRoundedIcon      from '@mui/icons-material/AccountCircleRounded';
+import SettingsRoundedIcon           from '@mui/icons-material/SettingsRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
-import LogoutRoundedIcon         from '@mui/icons-material/LogoutRounded';
-import ChevronLeftRoundedIcon    from '@mui/icons-material/ChevronLeftRounded';
-import MenuRoundedIcon           from '@mui/icons-material/MenuRounded';
-import PeopleRoundedIcon         from '@mui/icons-material/PeopleRounded';
-import FolderRoundedIcon         from '@mui/icons-material/FolderRounded';
-import NotificationsRoundedIcon  from '@mui/icons-material/NotificationsRounded';
+import LogoutRoundedIcon             from '@mui/icons-material/LogoutRounded';
+import ChevronLeftRoundedIcon        from '@mui/icons-material/ChevronLeftRounded';
+import MenuRoundedIcon               from '@mui/icons-material/MenuRounded';
+import PeopleRoundedIcon             from '@mui/icons-material/PeopleRounded';
+import FolderRoundedIcon             from '@mui/icons-material/FolderRounded';
+import NotificationsRoundedIcon      from '@mui/icons-material/NotificationsRounded';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const DRAWER_OPEN_WIDTH   = 200;
 export const DRAWER_CLOSED_WIDTH = 68;
 
-// Design tokens — dark sidebar palette
 const T = {
   bg:           '#0C0E13',
   bgItem:       'rgba(255,255,255,0.04)',
   bgHover:      'rgba(255,255,255,0.06)',
   bgActive:     'rgba(99,102,241,0.13)',
-  accent:       '#818CF8',          // indigo-400
-  accentBorder: '#6366F1',          // indigo-500
+  accent:       '#818CF8',
+  accentBorder: '#6366F1',
   accentMuted:  'rgba(99,102,241,0.35)',
   avatarBg:     '#1E1B4B',
   textPrimary:  '#EEF2FF',
@@ -79,12 +76,8 @@ const buildCategories = (userRole) => [
         label: 'Dashboard',
         icon: <DashboardRoundedIcon />,
         path: userRole === 'admin' ? '/admin' : '/employee',
-      }
-      // {
-      //   label: 'Notifications',
-      //   icon: <NotificationsRoundedIcon />,
-      //   path: '/notifications',
-      // },
+      },
+      // { label: 'Notifications', icon: <NotificationsRoundedIcon />, path: '/notifications' },
     ],
   },
   // {
@@ -96,16 +89,14 @@ const buildCategories = (userRole) => [
   //   ],
   // },
   ...(userRole === 'admin'
-    ? [
-        {
-          label: 'Management',
-          items: [
-            { label: 'Team',       icon: <PeopleRoundedIcon />,                path: '/team' },
-            { label: 'Projects',   icon: <FolderRoundedIcon />,               path: '/projects' },
-            { label: 'Admin Panel',icon: <AdminPanelSettingsRoundedIcon />,    path: '/admin' },
-          ],
-        },
-      ]
+    ? [{
+        label: 'Management',
+        items: [
+          { label: 'Team',     icon: <PeopleRoundedIcon />, path: '/team' },
+          { label: 'Projects', icon: <FolderRoundedIcon />, path: '/projects' },
+          // { label: 'Admin Panel', icon: <AdminPanelSettingsRoundedIcon />, path: '/admin' },
+        ],
+      }]
     : []),
   {
     label: 'Account',
@@ -123,46 +114,35 @@ function NavItem({ item, isOpen, isActive, onClick }) {
     <ListItemButton
       onClick={onClick}
       sx={{
-        mx: 1,
-        borderRadius: '10px',
+        mr: 1, ml: 0,
+        borderRadius: '0px 10px 10px 0px',
         mb: '2px',
         px: isOpen ? 1.5 : 0,
         py: '7px',
         minHeight: 38,
         justifyContent: isOpen ? 'flex-start' : 'center',
-        bgcolor: isActive ? T.bgActive : 'transparent',
-        color: isActive ? T.textPrimary : T.textSecondary,
-        borderLeft: isActive
-          ? `2px solid ${T.accentBorder}`
-          : '2px solid transparent',
-        '&:hover': {
-          bgcolor: isActive ? T.bgActive : T.bgHover,
-        },
+        bgcolor:    isActive ? T.bgActive    : 'transparent',
+        color:      isActive ? T.textPrimary : T.textSecondary,
+        borderLeft: isActive ? `2px solid ${T.accentBorder}` : '2px solid transparent',
+        '&:hover':  { bgcolor: isActive ? T.bgActive : T.bgHover },
         transition: T.transition,
       }}
     >
-      <ListItemIcon
-        sx={{
-          minWidth: 0,
-          mr: isOpen ? 1.5 : 0,
-          color: isActive ? T.accent : T.textSecondary,
-          justifyContent: 'center',
-          '& svg': { fontSize: 18 },
-          transition: T.transition,
-        }}
-      >
+      <ListItemIcon sx={{
+        minWidth: 0, mr: isOpen ? 1.5 : 0,
+        color: isActive ? T.accent : T.textSecondary,
+        justifyContent: 'center',
+        '& svg': { fontSize: 18 },
+        transition: T.transition,
+      }}>
         {item.icon}
       </ListItemIcon>
-
       {isOpen && (
         <ListItemText
           primary={item.label}
           primaryTypographyProps={{
-            fontSize: 13,
-            fontWeight: isActive ? 600 : 400,
-            color: T.textPrimary,
-            letterSpacing: '-0.01em',
-            whiteSpace: 'nowrap',
+            fontSize: 13, fontWeight: isActive ? 600 : 400,
+            color: T.textPrimary, letterSpacing: '-0.01em', whiteSpace: 'nowrap',
           }}
         />
       )}
@@ -173,9 +153,7 @@ function NavItem({ item, isOpen, isActive, onClick }) {
     <ListItem disablePadding>{button}</ListItem>
   ) : (
     <Tooltip title={item.label} placement="right" arrow>
-      <ListItem disablePadding sx={{ justifyContent: 'center' }}>
-        {button}
-      </ListItem>
+      <ListItem disablePadding sx={{ justifyContent: 'center' }}>{button}</ListItem>
     </Tooltip>
   );
 }
@@ -183,24 +161,15 @@ function NavItem({ item, isOpen, isActive, onClick }) {
 // ─── Category label ───────────────────────────────────────────────────────────
 
 function CategoryLabel({ label, isOpen, showDivider }) {
-  if (!isOpen) {
-    return showDivider ? (
-      <Divider sx={{ mx: 1.5, my: 0.75, borderColor: T.divider }} />
-    ) : null;
-  }
+  if (!isOpen) return showDivider
+    ? <Divider sx={{ mx: 1.5, my: 0.75, borderColor: T.divider }} />
+    : null;
   return (
-    <Typography
-      sx={{
-        fontSize: 9.5,
-        fontWeight: 700,
-        color: T.textPrimary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        px: 2.5,
-        pt: 1.5,
-        pb: 0.5,
-      }}
-    >
+    <Typography sx={{
+      fontSize: 9.5, fontWeight: 700, color: T.textPrimary,
+      textTransform: 'uppercase', letterSpacing: '0.1em',
+      px: 2.5, pt: 1.5, pb: 0.5,
+    }}>
       {label}
     </Typography>
   );
@@ -209,12 +178,18 @@ function CategoryLabel({ label, isOpen, showDivider }) {
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
 function Navbar() {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const [isOpen, setIsOpen] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const userRole = localStorage.getItem('role')     || 'employee';
+  const [isOpen,    setIsOpen]    = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [imgError,  setImgError]  = useState(false);
+  const [userId,    setUserId]    = useState(null);
+
+  const userRole = localStorage.getItem('role')     || 'Pending';
   const username = localStorage.getItem('username') || 'User';
+  const token = localStorage.getItem('token');
+
   const initials = username
     .split(' ')
     .map((w) => w[0])
@@ -222,19 +197,68 @@ function Navbar() {
     .slice(0, 2)
     .toUpperCase();
 
+  useEffect(() => {
+    setAvatarUrl('');
+    setImgError(false);
+    setUserId(null);       // ← force re-fetch of /api/me for the new user
+  }, [token]);             // ← re-runs every time a different token is present
+
+  // ── Fetch avatar from API ─────────────────────────────────────────────────
+  const fetchUserData = useCallback(async () => {
+    if (!token) return;
+    const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+    try {
+      // ✅ Always resolve the user from the current token — don't reuse cached userId
+      const meRes = await axios.get('http://127.0.0.1:8000/api/me', axiosConfig);
+      const currentUserId = meRes.data.id;
+      setUserId(currentUserId);
+
+      const profileRes = await axios.get(
+        `http://127.0.0.1:8000/api/profile/${currentUserId}`,
+        axiosConfig,
+      );
+
+      if (profileRes.data.avatar_url) {
+        setAvatarUrl(profileRes.data.avatar_url);
+        setImgError(false);
+      }
+    } catch {
+      // Silently ignore
+    }
+  }, [token]); // ← depend on token, not userId
+
+  // Run once on mount
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
+
+  // ── Re-fetch when the Profile page fires 'avatarUpdated' ─────────────────
+  // In your Profile save handler, add ONE line after a successful upload:
+  //   window.dispatchEvent(new Event('avatarUpdated'));
+useEffect(() => {
+  const handleStorageChange = (event) => {
+    // Only fetch if the modified key is specifically our 'token'
+    if (event.key === 'token') {
+      fetchUserData();
+    }
+  };
+
+  window.addEventListener('storage', handleStorageChange);
+  return () => window.removeEventListener('storage', handleStorageChange);
+}, [fetchUserData]);
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     navigate('/login', { replace: true });
   };
 
-  // Hide on auth pages
-  if (location.pathname === '/login' || location.pathname === '/register') {
-    return null;
-  }
+  if (location.pathname === '/login' || location.pathname === '/register') return null;
 
-  const categories = buildCategories(userRole);
+  const categories  = buildCategories(userRole);
   const drawerWidth = isOpen ? DRAWER_OPEN_WIDTH : DRAWER_CLOSED_WIDTH;
+  const showImage   = Boolean(avatarUrl) && !imgError;
 
   return (
     <Drawer
@@ -247,8 +271,9 @@ function Navbar() {
           width: drawerWidth,
           boxSizing: 'border-box',
           bgcolor: T.bg,
-          borderRight: `1px solid ${T.divider}`,
+          border: 'none',
           overflowX: 'hidden',
+          borderRadius: '0 12px 12px 0',
           overflowY: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -257,154 +282,85 @@ function Navbar() {
       }}
     >
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: isOpen ? 'space-between' : 'center',
-          px: isOpen ? 2 : 0,
-          height: 56,
-          borderBottom: `1px solid ${T.divider}`,
-          flexShrink: 0,
-        }}
-      >
+      {/* ── Header ── */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: isOpen ? 'space-between' : 'center',
+        px: isOpen ? 2 : 0, height: 56,
+        borderBottom: `1px solid ${T.divider}`, flexShrink: 0,
+      }}>
         {isOpen && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Brand mark */}
-            <Box
-              sx={{
-                width: 26,
-                height: 26,
-                borderRadius: '7px',
-                background: `linear-gradient(135deg, ${T.accentBorder} 0%, #4338CA 100%)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
-                W
-              </Typography>
+            <Box sx={{
+              width: 26, height: 26, borderRadius: '7px', flexShrink: 0,
+              background: `linear-gradient(135deg, ${T.accentBorder} 0%, #4338CA 100%)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#fff', lineHeight: 1 }}>W</Typography>
             </Box>
-            <Typography
-              sx={{
-                fontWeight: 700,
-                fontSize: 13.5,
-                color: T.textPrimary,
-                letterSpacing: '-0.02em',
-                whiteSpace: 'nowrap',
-              }}
-            >
+            <Typography sx={{ fontWeight: 700, fontSize: 13.5, color: T.textPrimary, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
               Workload Manager
             </Typography>
           </Box>
         )}
-
         <IconButton
-          onClick={() => setIsOpen((v) => !v)}
-          size="small"
-          sx={{
-            color: T.textSecondary,
-            borderRadius: '8px',
-            width: 32,
-            height: 32,
-            '&:hover': { color: T.textPrimary, bgcolor: T.bgHover },
-          }}
+          onClick={() => setIsOpen((v) => !v)} size="small"
+          sx={{ color: T.textSecondary, borderRadius: '8px', width: 32, height: 32, '&:hover': { color: T.textPrimary, bgcolor: T.bgHover } }}
         >
-          {isOpen
-            ? <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />
-            : <MenuRoundedIcon        sx={{ fontSize: 18 }} />
-          }
+          {isOpen ? <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} /> : <MenuRoundedIcon sx={{ fontSize: 18 }} />}
         </IconButton>
       </Box>
 
-      {/* ── User block ──────────────────────────────────────────────────── */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.5,
-          px: isOpen ? 1.75 : 0,
-          py: 1.25,
-          justifyContent: isOpen ? 'flex-start' : 'center',
-          borderBottom: `1px solid ${T.divider}`,
-          flexShrink: 0,
-        }}
-      >
+      {/* ── User block ── */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        px: isOpen ? 1.75 : 0, py: 1.25,
+        justifyContent: isOpen ? 'flex-start' : 'center',
+        borderBottom: `1px solid ${T.divider}`, flexShrink: 0,
+      }}>
         <Avatar
+          src={showImage ? avatarUrl : undefined}
+          imgProps={{
+            onError: () => setImgError(true), // fall back to initials if URL breaks
+            referrerPolicy: 'no-referrer',
+          }}
           sx={{
-            width: 32,
-            height: 32,
-            bgcolor: T.avatarBg,
-            color: T.accent,
-            fontSize: 11,
-            fontWeight: 700,
-            flexShrink: 0,
+            width: 32, height: 32,
+            bgcolor: T.avatarBg, color: T.accent,
+            fontSize: 11, fontWeight: 700, flexShrink: 0,
             border: `1px solid ${T.accentMuted}`,
+            '& img': { objectFit: 'cover' },
           }}
         >
-          {initials}
+          {!showImage && initials}
         </Avatar>
 
         {isOpen && (
           <Box sx={{ overflow: 'hidden' }}>
-            <Typography
-              noWrap
-              sx={{
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: T.textPrimary,
-                lineHeight: 1.3,
-              }}
-            >
+            <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 600, color: T.textPrimary, lineHeight: 1.3 }}>
               {username}
             </Typography>
-            <Typography
-              sx={{
-                fontSize: 9.5,
-                color: T.accent,
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                fontWeight: 700,
-              }}
-            >
+            <Typography sx={{ fontSize: 9.5, color: T.accent, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
               {userRole}
             </Typography>
           </Box>
         )}
       </Box>
 
-      {/* ── Nav categories ──────────────────────────────────────────────── */}
-      <Box
-        sx={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          py: 1,
-          /* Custom scrollbar */
-          '&::-webkit-scrollbar': { width: 4 },
-          '&::-webkit-scrollbar-track': { background: 'transparent' },
-          '&::-webkit-scrollbar-thumb': {
-            background: T.divider,
-            borderRadius: 4,
-          },
-        }}
-      >
+      {/* ── Nav categories ── */}
+      <Box sx={{
+        flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1,
+        '&::-webkit-scrollbar': { width: 4 },
+        '&::-webkit-scrollbar-track': { background: 'transparent' },
+        '&::-webkit-scrollbar-thumb': { background: T.divider, borderRadius: 4 },
+      }}>
         {categories.map((cat, idx) => (
           <Box key={cat.label}>
-            <CategoryLabel
-              label={cat.label}
-              isOpen={isOpen}
-              showDivider={idx > 0}
-            />
+            <CategoryLabel label={cat.label} isOpen={isOpen} showDivider={idx > 0} />
             <List disablePadding>
               {cat.items.map((item) => (
                 <NavItem
-                  key={item.path}
-                  item={item}
-                  isOpen={isOpen}
+                  key={item.path} item={item} isOpen={isOpen}
                   isActive={location.pathname === item.path}
                   onClick={() => navigate(item.path)}
                 />
@@ -414,59 +370,27 @@ function Navbar() {
         ))}
       </Box>
 
-      {/* ── Logout footer ───────────────────────────────────────────────── */}
-      <Box
-        sx={{
-          borderTop: `1px solid ${T.divider}`,
-          p: 1,
-          flexShrink: 0,
-        }}
-      >
+      {/* ── Logout footer ── */}
+      <Box sx={{ borderTop: `1px solid ${T.divider}`, p: 1, flexShrink: 0 }}>
         {isOpen ? (
           <ListItemButton
             onClick={handleLogout}
             sx={{
-              borderRadius: '10px',
-              px: 1.5,
-              py: '7px',
-              color: T.textSecondary,
-              '&:hover': {
-                bgcolor: T.logoutHover,
-                color: T.logoutText,
-                '& .logout-icon': { color: T.logoutText },
-              },
+              borderRadius: '10px', px: 1.5, py: '7px', color: T.textSecondary,
+              '&:hover': { bgcolor: T.logoutHover, color: T.logoutText, '& .logout-icon': { color: T.logoutText } },
               transition: T.transition,
             }}
           >
-            <ListItemIcon
-              className="logout-icon"
-              sx={{
-                minWidth: 0,
-                mr: 1.5,
-                color: 'inherit',
-                '& svg': { fontSize: 18 },
-                transition: T.transition,
-              }}
-            >
+            <ListItemIcon className="logout-icon" sx={{ minWidth: 0, mr: 1.5, color: 'inherit', '& svg': { fontSize: 18 }, transition: T.transition }}>
               <LogoutRoundedIcon />
             </ListItemIcon>
-            <ListItemText
-              primary="Logout"
-              primaryTypographyProps={{ fontSize: 13, fontWeight: 400, letterSpacing: '-0.01em' }}
-            />
+            <ListItemText primary="Logout" primaryTypographyProps={{ fontSize: 13, fontWeight: 400, letterSpacing: '-0.01em' }} />
           </ListItemButton>
         ) : (
           <Tooltip title="Logout" placement="right" arrow>
             <ListItemButton
               onClick={handleLogout}
-              sx={{
-                borderRadius: '10px',
-                justifyContent: 'center',
-                py: '7px',
-                color: T.textSecondary,
-                '&:hover': { bgcolor: T.logoutHover, color: T.logoutText },
-                transition: T.transition,
-              }}
+              sx={{ borderRadius: '10px', justifyContent: 'center', py: '7px', color: T.textSecondary, '&:hover': { bgcolor: T.logoutHover, color: T.logoutText }, transition: T.transition }}
             >
               <LogoutRoundedIcon sx={{ fontSize: 18 }} />
             </ListItemButton>
