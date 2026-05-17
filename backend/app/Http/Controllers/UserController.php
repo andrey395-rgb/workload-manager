@@ -12,7 +12,8 @@ class UserController extends Controller
         // We only want to return users who have the 'employee' role.
         // We do NOT want Admins showing up in the task assignment dropdown!
         // Spatie provides the role() method for this exact scenario.
-        $employees = User::role('employee')->get();
+        // Eager load 'media' to avoid N+1 issues with avatar URLs.
+        $employees = User::role('employee')->with('media')->get();
 
         return response()->json([
             'users' => $employees

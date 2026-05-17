@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { 
+  NAVY, NAVY2, NAVY3, ACCENT, TEAL, SURFACE, CARD_BG, 
+  STATUS_MAP, normaliseStatus 
+} from '../themeTokens'; 
 import {
-  Box, Typography, Paper, Alert, Chip, Button, Card, CardContent,
+  Box, Typography, Paper, Chip, Button, Card, CardContent,
   Stack, Skeleton, Tooltip, IconButton, InputAdornment, TextField,
-  Avatar, alpha, Dialog, DialogTitle, DialogContent,
-  DialogContentText, DialogActions, FormControl, Select, MenuItem,
+  Avatar, alpha, FormControl, Select, MenuItem,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   TableSortLabel, ToggleButton, ToggleButtonGroup, CircularProgress,
+  useTheme
 } from '@mui/material';
 import {
   DeleteOutlined as DeleteOutlineIcon,
@@ -20,24 +24,18 @@ import {
   Sort as SortIcon,
   GridView as GridViewIcon,
   TableRows as TableRowsIcon,
-  PersonOff as PersonOffIcon,
   ManageAccounts as ManageAccountsIcon,
   AdminPanelSettings as AdminIcon,
   Person as EmployeeIcon,
 } from '@mui/icons-material';
+import Notification from '../components/Notification';
+import StatCard from '../components/StatCard';
+import ConfirmDialog from '../components/ConfirmDialog';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const NAVY    = '#1a1f36';
-const NAVY2   = '#252b45';
-const NAVY3   = '#2f3655';
-const ACCENT  = '#6c63ff';
-const TEAL    = '#00d4b4';
-const SURFACE = '#f8f9fc';
-const CARD_BG = '#ffffff';
-
-const normaliseStatus = (s = 'pending') => {
-  const v = (s || '').toLowerCase().replace('-', '_');
-  return ['completed', 'in_progress', 'pending'].includes(v) ? v : 'pending';
+// ─── Role badge colours ───────────────────────────────────────────────────────
+const ROLE_META = {
+  admin:    { label: 'Admin',    color: '#7c3aed', bg: alpha('#7c3aed', 0.1), Icon: AdminIcon },
+  employee: { label: 'Employee', color: '#0369a1', bg: alpha('#0369a1', 0.1), Icon: EmployeeIcon },
 };
 
 /** Resolve role from either a Spatie roles array or a plain `role` string */
@@ -48,61 +46,6 @@ const getUserRole = (emp) => {
   }
   return emp.role ?? 'employee';
 };
-
-// ─── Role badge colours ───────────────────────────────────────────────────────
-const ROLE_META = {
-  admin:    { label: 'Admin',    color: '#7c3aed', bg: alpha('#7c3aed', 0.1), Icon: AdminIcon },
-  employee: { label: 'Employee', color: '#0369a1', bg: alpha('#0369a1', 0.1), Icon: EmployeeIcon },
-};
-
-function RoleBadge({ role }) {
-  const meta = ROLE_META[role] ?? ROLE_META.employee;
-  return (
-    <Chip
-      size="small"
-      icon={<meta.Icon sx={{ fontSize: '11px !important', color: `${meta.color} !important` }} />}
-      label={meta.label}
-      sx={{
-        height: 20,
-        fontSize: '0.62rem',
-        fontWeight: 700,
-        bgcolor: meta.bg,
-        color: meta.color,
-        border: `1px solid ${alpha(meta.color, 0.2)}`,
-        letterSpacing: '0.02em',
-        '& .MuiChip-label': { px: 0.75 },
-        '& .MuiChip-icon': { ml: 0.5 },
-      }}
-    />
-  );
-}
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, accent }) {
-  return (
-    <Card elevation={0} sx={{
-      border: '1px solid', borderColor: 'divider',
-      borderRadius: 2, bgcolor: CARD_BG, height: '100%',
-    }}>
-      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 1.5,
-            bgcolor: alpha(accent, 0.12),
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <Icon sx={{ fontSize: 20, color: accent }} />
-          </Box>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1 }}>{value}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{label}</Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
 
 // ─── Role Selector ────────────────────────────────────────────────────────────
 function RoleSelector({ emp, onRoleChange, loading }) {
@@ -151,24 +94,26 @@ function EmployeeCard({ emp, taskCounts, onDelete, onRoleChange, roleLoading }) 
   return (
     <Card elevation={0} sx={{
       border: '1px solid', borderColor: 'divider',
-      borderRadius: 2, bgcolor: CARD_BG,
+      borderRadius: 2, bgcolor: 'background.paper',
       transition: 'box-shadow .15s',
       '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,.08)' },
     }}>
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-        {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Avatar sx={{
-              width: 44, height: 44,
-              bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
-              fontSize: '1rem', fontWeight: 700,
-              border: `1.5px solid ${alpha(ACCENT, 0.25)}`,
-            }}>
+            <Avatar 
+              src={emp.avatar_url}
+              sx={{
+                width: 44, height: 44,
+                bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
+                fontSize: '1rem', fontWeight: 700,
+                border: `1.5px solid ${alpha(ACCENT, 0.25)}`,
+              }}
+            >
               {emp.name.charAt(0).toUpperCase()}
             </Avatar>
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1.2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
                 {emp.name}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{
@@ -179,21 +124,21 @@ function EmployeeCard({ emp, taskCounts, onDelete, onRoleChange, roleLoading }) 
               </Typography>
             </Box>
           </Box>
+          
           <Tooltip title="Remove employee">
             <IconButton
               size="small"
               onClick={() => onDelete(emp)}
-              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' }, mt: -0.5, mr: -0.5 }}
+              sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
             >
               <DeleteOutlineIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
         </Box>
 
-        {/* Role selector row */}
         <Box sx={{
           mb: 1.75, px: 1.25, py: 0.75,
-          bgcolor: SURFACE, borderRadius: 1.25,
+          bgcolor: 'background.default', borderRadius: 1.25,
           border: '1px solid', borderColor: 'divider',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
@@ -203,7 +148,6 @@ function EmployeeCard({ emp, taskCounts, onDelete, onRoleChange, roleLoading }) 
           <RoleSelector emp={emp} onRoleChange={onRoleChange} loading={roleLoading} />
         </Box>
 
-        {/* Task breakdown chips */}
         <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 2 }}>
           <Chip
             size="small"
@@ -222,7 +166,6 @@ function EmployeeCard({ emp, taskCounts, onDelete, onRoleChange, roleLoading }) 
           />
         </Box>
 
-        {/* Completion progress */}
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -248,23 +191,31 @@ function EmployeeCard({ emp, taskCounts, onDelete, onRoleChange, roleLoading }) 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminTeamPage() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [employees, setEmployees]   = useState([]);
   const [tasks, setTasks]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
   const [success, setSuccess]       = useState('');
 
+  const [openNotif, setOpenNotif]     = useState(false);
+  const [notifSeverity, setNotifSeverity] = useState('info');
+
   const [search, setSearch]         = useState('');
   const [sortBy, setSortBy]         = useState('name');
   const [sortDir, setSortDir]       = useState('asc');
   const [viewMode, setViewMode]     = useState('grid');
 
+  // Modal states
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [targetEmp, setTargetEmp]   = useState(null);
   const [deleting, setDeleting]     = useState(false);
 
-  // Track which employee IDs are currently saving a role change
-  const [roleLoadingIds, setRoleLoadingIds] = useState(new Set());
+  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
+  const [pendingRoleChange, setPendingRole]   = useState(null); // { emp, newRole }
+  const [updatingRole, setUpdatingRole]       = useState(false);
 
   const token = localStorage.getItem('token');
   const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
@@ -288,38 +239,43 @@ export default function AdminTeamPage() {
   };
 
   // ── Role change ────────────────────────────────────────────────────────────
-  const handleRoleChange = async (emp, newRole) => {
+  const handleRoleChangeRequest = (emp, newRole) => {
     if (getUserRole(emp) === newRole) return;
+    setPendingRole({ emp, newRole });
+    setRoleConfirmOpen(true);
+  };
 
-    setRoleLoadingIds(prev => new Set(prev).add(emp.id));
+  const executeRoleChange = async () => {
+    if (!pendingRoleChange) return;
+    const { emp, newRole } = pendingRoleChange;
+    setUpdatingRole(true);
+    
     try {
       await axios.patch(
         `http://127.0.0.1:8000/api/users/${emp.id}/role`,
         { role: newRole },
         axiosConfig,
       );
-      // Optimistic update — works for both `role` string and `roles` array shapes
       setEmployees(prev => prev.map(e => {
         if (e.id !== emp.id) return e;
         const updated = { ...e, role: newRole };
-        if (Array.isArray(e.roles)) {
-          updated.roles = [{ name: newRole }];
-        }
+        if (Array.isArray(e.roles)) updated.roles = [{ name: newRole }];
         return updated;
       }));
       setSuccess(`${emp.name}'s role updated to ${newRole}.`);
+      setNotifSeverity('success');
+      setOpenNotif(true);
     } catch {
-      setError(`Failed to update ${emp.name}'s role. Please try again.`);
+      setError(`Failed to update ${emp.name}'s role.`);
+      setNotifSeverity('error');
+      setOpenNotif(true);
     } finally {
-      setRoleLoadingIds(prev => {
-        const next = new Set(prev);
-        next.delete(emp.id);
-        return next;
-      });
+      setUpdatingRole(false);
+      setRoleConfirmOpen(false);
+      setPendingRole(null);
     }
   };
 
-  // ── Task counts ────────────────────────────────────────────────────────────
   const taskCountsMap = useMemo(() => {
     const map = {};
     employees.forEach(emp => {
@@ -334,28 +290,30 @@ export default function AdminTeamPage() {
     return map;
   }, [employees, tasks]);
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const stats = useMemo(() => ({
-    total:          employees.length,
-    withTasks:      employees.filter(e => (taskCountsMap[e.id]?.total ?? 0) > 0).length,
-    totalTasks:     tasks.length,
-    completedTasks: tasks.filter(t => normaliseStatus(t.status) === 'completed').length,
-  }), [employees, tasks, taskCountsMap]);
+  const stats = useMemo(() => {
+    return {
+      total:          employees.length,
+      withTasks:      employees.filter(e => (taskCountsMap[e.id]?.total ?? 0) > 0).length,
+      totalTasks:     tasks.length,
+      completedTasks: tasks.filter(t => normaliseStatus(t.status) === 'completed').length,
+    };
+  }, [employees, tasks, taskCountsMap]);
 
-  // ── Filtered + sorted ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = [...employees];
     if (search) list = list.filter(e =>
       e.name.toLowerCase().includes(search.toLowerCase()) ||
       e.email.toLowerCase().includes(search.toLowerCase())
     );
+    
     list.sort((a, b) => {
       let aVal, bVal;
       if (sortBy === 'name')       { aVal = a.name;  bVal = b.name; }
-      if (sortBy === 'email')      { aVal = a.email; bVal = b.email; }
-      if (sortBy === 'role')       { aVal = getUserRole(a); bVal = getUserRole(b); }
-      if (sortBy === 'tasks')      { aVal = taskCountsMap[a.id]?.total ?? 0; bVal = taskCountsMap[b.id]?.total ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal; }
-      if (sortBy === 'completion') { aVal = taskCountsMap[a.id]?.completed ?? 0; bVal = taskCountsMap[b.id]?.completed ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal; }
+      else if (sortBy === 'email')      { aVal = a.email; bVal = b.email; }
+      else if (sortBy === 'role')       { aVal = getUserRole(a); bVal = getUserRole(b); }
+      else if (sortBy === 'tasks')      { aVal = taskCountsMap[a.id]?.total ?? 0; bVal = taskCountsMap[b.id]?.total ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal; }
+      else if (sortBy === 'completion') { aVal = taskCountsMap[a.id]?.completed ?? 0; bVal = taskCountsMap[b.id]?.completed ?? 0; return sortDir === 'asc' ? aVal - bVal : bVal - aVal; }
+      
       return sortDir === 'asc' ? (aVal ?? '').localeCompare(bVal ?? '') : (bVal ?? '').localeCompare(aVal ?? '');
     });
     return list;
@@ -374,16 +332,19 @@ export default function AdminTeamPage() {
     try {
       await axios.delete(`http://127.0.0.1:8000/api/users/${targetEmp.id}`, axiosConfig);
       setSuccess(`${targetEmp.name} has been removed from the team.`);
+      setNotifSeverity('success');
+      setOpenNotif(true);
       setEmployees(prev => prev.filter(e => e.id !== targetEmp.id));
       setTasks(prev => prev.map(t => ({ ...t, users: t.users?.filter(u => u.id !== targetEmp.id) ?? [] })));
     } catch {
       setError('Failed to remove employee. Please try again.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
     } finally {
       setDeleting(false); setDeleteOpen(false); setTargetEmp(null);
     }
   };
 
-  // ── Skeleton ───────────────────────────────────────────────────────────────
   if (loading) return (
     <Box sx={{ p: 4, maxWidth: 1280, mx: 'auto' }}>
       <Skeleton variant="text" width={240} height={48} sx={{ mb: 3 }} />
@@ -396,19 +357,17 @@ export default function AdminTeamPage() {
     </Box>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Box sx={{
       p: { xs: 2, sm: 3, md: 4 },
-      bgcolor: SURFACE,
+      bgcolor: 'background.default',
       minHeight: '100vh',
       boxSizing: 'border-box',
       maxWidth: 1280, mx: 'auto',
     }}>
-      {/* ── Page header ── */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: NAVY, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
             Team
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -425,31 +384,25 @@ export default function AdminTeamPage() {
         </Tooltip>
       </Box>
 
-      {/* ── Alerts ── */}
-      {error   && <Alert severity="error"   onClose={() => setError('')}   sx={{ mb: 2.5, borderRadius: 1.5 }}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2.5, borderRadius: 1.5 }}>{success}</Alert>}
-
-      {/* ── Stat cards ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3.5 }}>
-        <StatCard icon={PeopleIcon}       label="Total Employees"  value={stats.total}           accent={TEAL}    />
-        <StatCard icon={TaskAltIcon}      label="Active Members"   value={stats.withTasks}        accent={ACCENT}  />
+        <StatCard icon={PeopleIcon}       label="Active Employees"  value={stats.total}           accent={TEAL}    />
+        <StatCard icon={TaskAltIcon}      label="Assigned Members"   value={stats.withTasks}        accent={ACCENT}  />
         <StatCard icon={CheckCircleIcon}  label="Tasks Completed"  value={stats.completedTasks}   accent="#059669" />
         <StatCard icon={InProgressIcon}   label="Total Tasks"      value={stats.totalTasks}       accent="#d97706" />
       </Box>
 
-      {/* ── Employee list panel ── */}
       <Paper elevation={0} sx={{
         border: '1px solid', borderColor: 'divider',
-        borderRadius: 2, bgcolor: CARD_BG, overflow: 'hidden',
+        borderRadius: 2, bgcolor: 'background.paper', overflow: 'hidden',
       }}>
-        {/* Panel header */}
         <Box sx={{
-          bgcolor: NAVY, px: 3, py: 2,
+          bgcolor: isDark ? alpha('#fff', 0.03) : '#1a1f36', px: 3, py: 2,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid', borderColor: 'divider',
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <PeopleIcon sx={{ fontSize: 17, color: TEAL }} />
-            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', color: '#fff', letterSpacing: '0.02em' }}>
+            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', color: isDark ? 'text.primary' : '#fff', letterSpacing: '0.02em' }}>
               Employee Directory
             </Typography>
           </Box>
@@ -463,12 +416,11 @@ export default function AdminTeamPage() {
           </Box>
         </Box>
 
-        {/* Controls bar */}
         <Box sx={{
           px: 3, py: 2,
           display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap',
           borderBottom: '1px solid', borderColor: 'divider',
-          bgcolor: SURFACE,
+          bgcolor: isDark ? alpha('#fff', 0.015) : '#f8f9fc',
         }}>
           <TextField
             placeholder="Search by name or email…"
@@ -507,7 +459,6 @@ export default function AdminTeamPage() {
             </IconButton>
           </Tooltip>
 
-          {/* View mode toggle */}
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -520,9 +471,9 @@ export default function AdminTeamPage() {
                 px: 1, py: 0.6, color: 'text.secondary',
               },
               '& .Mui-selected': {
-                bgcolor: `${NAVY} !important`,
-                color: '#fff !important',
-                borderColor: `${NAVY} !important`,
+                bgcolor: isDark ? 'primary.main' : '#1a1f36',
+                color: isDark ? 'primary.contrastText' : '#fff',
+                borderColor: isDark ? 'primary.main' : '#1a1f36',
               },
             }}
           >
@@ -531,22 +482,18 @@ export default function AdminTeamPage() {
           </ToggleButtonGroup>
         </Box>
 
-        {/* Result count */}
         <Box sx={{ px: 3, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="caption" color="text.secondary" fontWeight={600}>
             SHOWING {filtered.length} OF {employees.length} EMPLOYEES
           </Typography>
         </Box>
 
-        {/* ── Content ── */}
         {filtered.length === 0 ? (
           <Box sx={{ py: 8, textAlign: 'center' }}>
-            <PersonOffIcon sx={{ fontSize: 48, color: 'divider', mb: 1 }} />
+            <PeopleIcon sx={{ fontSize: 48, color: 'divider', mb: 1 }} />
             <Typography variant="body2" color="text.secondary">No employees match your search.</Typography>
           </Box>
         ) : viewMode === 'grid' ? (
-
-          /* ── Grid view ── */
           <Box sx={{
             p: 3,
             display: 'grid',
@@ -559,45 +506,34 @@ export default function AdminTeamPage() {
                 emp={emp}
                 taskCounts={taskCountsMap[emp.id] ?? { total: 0, completed: 0, inProgress: 0, pending: 0 }}
                 onDelete={confirmDelete}
-                onRoleChange={handleRoleChange}
-                roleLoading={roleLoadingIds.has(emp.id)}
+                onRoleChange={handleRoleChangeRequest}
+                roleLoading={false}
               />
             ))}
           </Box>
-
         ) : (
-
-          /* ── Table view ── */
           <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', pl: 3 }}>
+                  <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8f9fc', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', pl: 3 }}>
                     <TableSortLabel active={sortBy === 'name'} direction={sortBy === 'name' ? sortDir : 'asc'} onClick={() => toggleSort('name')}>
                       Employee
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell sx={{ bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                    <TableSortLabel active={sortBy === 'email'} direction={sortBy === 'email' ? sortDir : 'asc'} onClick={() => toggleSort('email')}>
-                      Email
-                    </TableSortLabel>
+                  <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8f9fc', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
+                    Email
                   </TableCell>
-                  <TableCell sx={{ bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                    <TableSortLabel active={sortBy === 'role'} direction={sortBy === 'role' ? sortDir : 'asc'} onClick={() => toggleSort('role')}>
-                      Role
-                    </TableSortLabel>
+                  <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8f9fc', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
+                    Role
                   </TableCell>
-                  <TableCell sx={{ bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                    <TableSortLabel active={sortBy === 'tasks'} direction={sortBy === 'tasks' ? sortDir : 'asc'} onClick={() => toggleSort('tasks')}>
-                      Tasks
-                    </TableSortLabel>
+                  <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8f9fc', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
+                    Tasks
                   </TableCell>
-                  <TableCell sx={{ bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', minWidth: 160 }}>
-                    <TableSortLabel active={sortBy === 'completion'} direction={sortBy === 'completion' ? sortDir : 'asc'} onClick={() => toggleSort('completion')}>
-                      Completion
-                    </TableSortLabel>
+                  <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8f9fc', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', minWidth: 160 }}>
+                    Completion
                   </TableCell>
-                  <TableCell sx={{ bgcolor: SURFACE, width: 48 }} />
+                  <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8f9fc', width: 48 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -605,19 +541,25 @@ export default function AdminTeamPage() {
                   const tc  = taskCountsMap[emp.id] ?? { total: 0, completed: 0, inProgress: 0, pending: 0 };
                   const pct = tc.total > 0 ? Math.round((tc.completed / tc.total) * 100) : 0;
                   return (
-                    <TableRow key={emp.id} sx={{ '&:hover': { bgcolor: SURFACE }, '&:last-child td': { border: 0 } }}>
+                    <TableRow key={emp.id} sx={{ 
+                      '&:hover': { bgcolor: isDark ? alpha('#fff', 0.02) : SURFACE }, 
+                      '&:last-child td': { border: 0 }
+                    }}>
                       <TableCell sx={{ py: 1.75, pl: 3 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                          <Avatar sx={{
-                            width: 32, height: 32,
-                            bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
-                            fontSize: '0.8rem', fontWeight: 700,
-                            border: `1.5px solid ${alpha(ACCENT, 0.25)}`,
-                            flexShrink: 0,
-                          }}>
+                          <Avatar 
+                            src={emp.avatar_url}
+                            sx={{
+                              width: 32, height: 32,
+                              bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
+                              fontSize: '0.8rem', fontWeight: 700,
+                              border: `1.5px solid ${alpha(ACCENT, 0.25)}`,
+                              flexShrink: 0,
+                            }}
+                          >
                             {emp.name.charAt(0)}
                           </Avatar>
-                          <Typography variant="body2" fontWeight={600} color={NAVY}>{emp.name}</Typography>
+                          <Typography variant="body2" fontWeight={600} color="text.primary">{emp.name}</Typography>
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -625,21 +567,17 @@ export default function AdminTeamPage() {
                           <EmailIcon sx={{ fontSize: 12 }} />{emp.email}
                         </Typography>
                       </TableCell>
-
-                      {/* ── Role cell ── */}
                       <TableCell>
                         <RoleSelector
                           emp={emp}
-                          onRoleChange={handleRoleChange}
-                          loading={roleLoadingIds.has(emp.id)}
+                          onRoleChange={handleRoleChangeRequest}
+                          loading={false}
                         />
                       </TableCell>
-
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                           <Chip size="small" label={`${tc.completed} done`}    sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: alpha('#059669', 0.1), color: '#059669', '& .MuiChip-label': { px: 0.75 } }} />
                           <Chip size="small" label={`${tc.inProgress} active`} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: alpha('#d97706', 0.1), color: '#d97706', '& .MuiChip-label': { px: 0.75 } }} />
-                          <Chip size="small" label={`${tc.pending} pending`}   sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: alpha('#6366f1', 0.1), color: '#6366f1', '& .MuiChip-label': { px: 0.75 } }} />
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -666,58 +604,37 @@ export default function AdminTeamPage() {
         )}
       </Paper>
 
-      {/* ── Delete confirmation modal ── */}
-      <Dialog
+      {/* ── Confirm Role Change ── */}
+      <ConfirmDialog
+        open={roleConfirmOpen}
+        title="Update User Role?"
+        description={`Confirming this change will update the user's access levels. The user will be assigned the ${pendingRoleChange?.newRole?.toUpperCase()} permissions immediately.`}
+        targetItem={pendingRoleChange ? { ...pendingRoleChange.emp, subtext: `New Role: ${pendingRoleChange.newRole?.toUpperCase()}` } : null}
+        confirmLabel="Update Role"
+        loading={updatingRole}
+        onConfirm={executeRoleChange}
+        onClose={() => setRoleConfirmOpen(false)}
+      />
+
+      {/* ── Confirm Delete ── */}
+      <ConfirmDialog
         open={deleteOpen}
-        onClose={() => !deleting && setDeleteOpen(false)}
-        PaperProps={{
-          elevation: 0,
-          sx: { border: '1px solid', borderColor: 'divider', borderRadius: 2, maxWidth: 440 },
-        }}
-      >
-        <DialogTitle sx={{ color: NAVY, fontWeight: 700, pb: 1 }}>Remove Employee?</DialogTitle>
-        <DialogContent sx={{ pb: 2 }}>
-          <DialogContentText sx={{ color: 'text.secondary', fontSize: '0.875rem', lineHeight: 1.6 }}>
-            You are about to permanently remove:
-          </DialogContentText>
-          {targetEmp && (
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 1.5,
-              my: 2, p: 2, bgcolor: SURFACE,
-              borderRadius: 1.5, border: '1px solid', borderColor: 'divider',
-            }}>
-              <Avatar sx={{ bgcolor: alpha(ACCENT, 0.15), color: ACCENT, fontWeight: 700 }}>
-                {targetEmp.name.charAt(0)}
-              </Avatar>
-              <Box>
-                <Typography variant="body2" fontWeight={700} color={NAVY}>{targetEmp.name}</Typography>
-                <Typography variant="caption" color="text.secondary">{targetEmp.email}</Typography>
-              </Box>
-            </Box>
-          )}
-          <DialogContentText sx={{ color: 'text.secondary', fontSize: '0.875rem', lineHeight: 1.6 }}>
-            This will unlink them from all active tasks. This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, pt: 0, gap: 1 }}>
-          <Button
-            onClick={() => setDeleteOpen(false)} disabled={deleting}
-            sx={{ color: 'text.secondary', fontWeight: 500, textTransform: 'none' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={executeDelete} variant="contained" disabled={deleting} autoFocus
-            sx={{
-              bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' },
-              color: '#fff', fontWeight: 600, textTransform: 'none',
-              borderRadius: 1.5, boxShadow: 'none',
-            }}
-          >
-            {deleting ? 'Removing…' : 'Remove Employee'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Remove Employee?"
+        description="You are about to permanently remove this employee from the central directory. This will unlink them from all active tasks. This action cannot be undone."
+        targetItem={targetEmp}
+        confirmLabel="Remove Employee"
+        confirmColor="error"
+        loading={deleting}
+        onConfirm={executeDelete}
+        onClose={() => setDeleteOpen(false)}
+      />
+
+      <Notification 
+        open={openNotif} 
+        message={error || success} 
+        severity={notifSeverity} 
+        onClose={() => setOpenNotif(false)} 
+      />
     </Box>
   );
 }

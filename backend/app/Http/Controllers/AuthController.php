@@ -33,6 +33,7 @@ class AuthController extends Controller
         // 5. Return a JSON response back to React
         return response()->json([
             'user' => $user,
+            'role' => 'employee', // Explicitly return the role we just assigned
             'token' => $token
         ], 201);
     }

@@ -3,13 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 // Import Material UI components for a flat, enterprise-grade interface
-import { Box, TextField, Button, Typography, Alert, Paper } from '@mui/material';
+import { Box, TextField, Button, Typography, Paper } from '@mui/material';
+import Notification from '../components/Notification';
+import WelcomeOverlay from '../components/WelcomeOverlay';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [openNotif, setOpenNotif] = useState(false);
+
+  // Welcome state
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [targetRole, setTargetRole] = useState('');
+  const [userName, setUserName] = useState('');
 
   const navigate = useNavigate();
 
@@ -24,16 +32,15 @@ function Login() {
         password: password,
       });
 
-      const { token, role } = response.data;
+      const { token, role, user } = response.data;
 
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
+      localStorage.setItem('username', user.name);
 
-      if (role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/employee');
-      }
+      setUserName(user.name);
+      setTargetRole(role);
+      setShowWelcome(true);
 
     } catch (error) {
       if (error.response && error.response.status === 401) {
@@ -41,10 +48,23 @@ function Login() {
       } else {
         setErrorMessage('Connection failed. Ensure the authentication server is active.');
       }
+      setOpenNotif(true);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleWelcomeFinish = () => {
+    if (targetRole === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/employee');
+    }
+  };
+
+  if (showWelcome) {
+    return <WelcomeOverlay username={userName} onFinish={handleWelcomeFinish} />;
+  }
 
   return (
     // Minimalist flex canvas mapping directly to our cool slate base
@@ -77,12 +97,6 @@ function Login() {
         >
           Access Workspace
         </Typography>
-
-        {errorMessage && (
-          <Alert severity="error" sx={{ mb: 3, borderRadius: 1.5 }}>
-            {errorMessage}
-          </Alert>
-        )}
 
         <form onSubmit={handleLogin}>
           
@@ -131,6 +145,13 @@ function Login() {
 
         </form>
       </Paper>
+
+      <Notification 
+        open={openNotif} 
+        message={errorMessage} 
+        severity="error" 
+        onClose={() => setOpenNotif(false)} 
+      />
     </Box>
   );
 }

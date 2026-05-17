@@ -1,44 +1,64 @@
 import { createTheme } from '@mui/material/styles';
 
-const theme = createTheme({
+/**
+ * Workload Manager Dynamic Theme Configuration
+ * @param {'light' | 'dark'} mode 
+ */
+export const getAppTheme = (mode) => createTheme({
   palette: {
-    mode: 'light', 
+    mode,
     
-    // PRIMARY: Reserved strictly for primary conversion actions (Submit, Active Tabs)
-    primary: {
-      main: '#0f172a', // Highly sophisticated deep slate/black for primary actions
-      light: '#334155',
-      dark: '#020617',
-      contrastText: '#ffffff',
-    },
-    
-    // SECONDARY: Subtle, calibrated brand accents (Production Green, used sparingly)
-    secondary: {
-      main: '#10b981', // Clean, premium emerald green (not neon)
-      light: '#34d399',
-      dark: '#059669',
-      contrastText: '#ffffff',
-    },
-
-    // BACKGROUND: Ultra-clean slate foundation
-    background: {
-      default: '#f8fafc', // Premium soft slate/off-white canvas
-      paper: '#ffffff',   // Pure white containers
-    },
-
-    // TEXT: Strict hierarchy tokens
-    text: {
-      primary: '#0f172a',   // Deep slate (softer and more premium than pure #000)
-      secondary: '#64748b', // Highly readable muted metadata gray
-    },
-
-    // divider acts as our universal 1px structural line
-    divider: '#e2e8f0', 
+    ...(mode === 'light' ? {
+      // LIGHT MODE PALETTE
+      primary: {
+        main: '#0f172a', 
+        light: '#334155',
+        dark: '#020617',
+        contrastText: '#ffffff',
+      },
+      secondary: {
+        main: '#10b981', 
+        light: '#34d399',
+        dark: '#059669',
+        contrastText: '#ffffff',
+      },
+      background: {
+        default: '#f8fafc', 
+        paper: '#ffffff',   
+      },
+      text: {
+        primary: '#0f172a',   
+        secondary: '#64748b', 
+      },
+      divider: '#e2e8f0', 
+    } : {
+      // DARK MODE PALETTE
+      primary: {
+        main: '#f8fafc', // Soft white for primary actions in dark mode
+        light: '#ffffff',
+        dark: '#cbd5e1',
+        contrastText: '#0f172a',
+      },
+      secondary: {
+        main: '#10b981', // Keep emerald green consistent
+        light: '#34d399',
+        dark: '#059669',
+        contrastText: '#ffffff',
+      },
+      background: {
+        default: '#020617', // Deepest navy for foundational background
+        paper: '#0f172a',   // Card/Paper background slightly lighter
+      },
+      text: {
+        primary: '#f8fafc',   // Off-white primary text
+        secondary: '#94a3b8', // Muted blue-gray for metadata
+      },
+      divider: '#1e293b', 
+    }),
   },
 
   typography: {
     fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    // Elegant headings
     h4: {
       fontWeight: 700,
       letterSpacing: '-0.02em',
@@ -47,37 +67,32 @@ const theme = createTheme({
       fontWeight: 600,
       letterSpacing: '-0.01em',
     },
-    // Compact, data-dense body text
     body2: {
       fontSize: '0.875rem',
       lineHeight: 1.5,
     },
     button: {
-      textTransform: 'none', // Strips tacky ALL CAPS
+      textTransform: 'none', 
       fontWeight: 500,
       fontSize: '0.875rem',
     },
   },
 
-  // COMPONENT OVERRIDES: Enforcing the Flat & Crisp philosophy globally
   components: {
-    
-    // PAPERS & CARDS: Strip shadows entirely, enforce 1px crisp borders
     MuiPaper: {
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          boxShadow: 'none', // ZERO drop shadows
-          border: '1px solid #e2e8f0', // Premium flat structural separation
-          borderRadius: 8, // Modern, controlled corner rhythm
+          boxShadow: 'none',
+          border: `1px solid ${mode === 'light' ? '#e2e8f0' : '#1e293b'}`,
+          borderRadius: 8,
         },
       },
     },
     
-    // BUTTONS: Remove default elevation, enforce modern padding
     MuiButton: {
       defaultProps: {
-        disableElevation: true, // Flat design priority
+        disableElevation: true,
       },
       styleOverrides: {
         root: {
@@ -85,39 +100,37 @@ const theme = createTheme({
           padding: '6px 16px',
         },
         outlined: {
-          borderColor: '#cbd5e1',
-          color: '#334155',
+          borderColor: mode === 'light' ? '#cbd5e1' : '#334155',
+          color: mode === 'light' ? '#334155' : '#cbd5e1',
           '&:hover': {
-            backgroundColor: '#f1f5f9',
-            borderColor: '#94a3b8',
+            backgroundColor: mode === 'light' ? '#f1f5f9' : 'rgba(255,255,255,0.05)',
+            borderColor: mode === 'light' ? '#94a3b8' : '#475569',
           },
         },
       },
     },
 
-    // INPUTS: Clean, flat form fields that align perfectly
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
           borderRadius: 6,
           '& .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#cbd5e1',
+            borderColor: mode === 'light' ? '#cbd5e1' : '#334155',
           },
           '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#94a3b8',
+            borderColor: mode === 'light' ? '#94a3b8' : '#475569',
           },
         },
       },
     },
 
-    // TABS: Clean, minimal navigation bars without heavy backgrounds
     MuiTabs: {
       styleOverrides: {
         root: {
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: `1px solid ${mode === 'light' ? '#e2e8f0' : '#1e293b'}`,
         },
         indicator: {
-          backgroundColor: '#10b981', // Emerald indicator
+          backgroundColor: '#10b981',
           height: 2,
         },
       },
@@ -128,14 +141,21 @@ const theme = createTheme({
           fontWeight: 500,
           color: '#64748b',
           '&.Mui-selected': {
-            color: '#0f172a',
+            color: mode === 'light' ? '#0f172a' : '#f8fafc',
             fontWeight: 600,
           },
         },
       },
     },
-
+    
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: mode === 'light' ? '#ffffff' : '#0f172a',
+          borderBottom: `1px solid ${mode === 'light' ? '#e2e8f0' : '#1e293b'}`,
+          color: mode === 'light' ? '#0f172a' : '#f8fafc',
+        }
+      }
+    }
   },
 });
-
-export default theme;

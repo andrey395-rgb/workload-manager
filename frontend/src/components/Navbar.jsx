@@ -10,7 +10,7 @@
  * </Box>
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
@@ -27,6 +27,8 @@ import {
   IconButton,
   Tooltip,
   Avatar,
+  useTheme,
+  Switch,
 } from '@mui/material';
 
 import DashboardRoundedIcon          from '@mui/icons-material/DashboardRounded';
@@ -42,14 +44,18 @@ import MenuRoundedIcon               from '@mui/icons-material/MenuRounded';
 import PeopleRoundedIcon             from '@mui/icons-material/PeopleRounded';
 import FolderRoundedIcon             from '@mui/icons-material/FolderRounded';
 import NotificationsRoundedIcon      from '@mui/icons-material/NotificationsRounded';
+import LightModeRoundedIcon          from '@mui/icons-material/LightModeRounded';
+import DarkModeRoundedIcon           from '@mui/icons-material/DarkModeRounded';
+
+import { ColorModeContext } from '../App';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const DRAWER_OPEN_WIDTH   = 200;
 export const DRAWER_CLOSED_WIDTH = 68;
 
-const T = {
-  bg:           '#0C0E13',
+const getTokens = (mode, theme) => ({
+  bg:           mode === 'light' ? '#0C0E13' : theme.palette.background.paper,
   bgItem:       'rgba(255,255,255,0.04)',
   bgHover:      'rgba(255,255,255,0.06)',
   bgActive:     'rgba(99,102,241,0.13)',
@@ -64,11 +70,11 @@ const T = {
   logoutHover:  'rgba(239,68,68,0.10)',
   logoutText:   '#FCA5A5',
   transition:   'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-};
+});
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
-const buildCategories = (userRole) => [
+const buildCategories = (userRole, themeMode, toggleTheme) => [
   {
     label: 'Overview',
     items: [
@@ -77,31 +83,31 @@ const buildCategories = (userRole) => [
         icon: <DashboardRoundedIcon />,
         path: userRole === 'admin' ? '/admin' : '/employee',
       },
-      // { label: 'Notifications', icon: <NotificationsRoundedIcon />, path: '/notifications' },
     ],
   },
-  // {
-  //   label: 'Work',
-  //   items: [
-  //     { label: 'Tasks',    icon: <AssignmentRoundedIcon />,    path: '/tasks' },
-  //     { label: 'Schedule', icon: <CalendarMonthRoundedIcon />, path: '/schedule' },
-  //     { label: 'Reports',  icon: <BarChartRoundedIcon />,      path: '/reports' },
-  //   ],
-  // },
   ...(userRole === 'admin'
     ? [{
         label: 'Management',
         items: [
           { label: 'Team',     icon: <PeopleRoundedIcon />, path: '/team' },
           { label: 'Projects', icon: <FolderRoundedIcon />, path: '/projects' },
-          // { label: 'Admin Panel', icon: <AdminPanelSettingsRoundedIcon />, path: '/admin' },
         ],
       }]
     : []),
   {
+    label: 'Preference',
+    items: [
+      {
+        label: themeMode === 'light' ? 'Light Mode' : 'Dark Mode',
+        icon: themeMode === 'light' ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />,
+        action: toggleTheme,
+        isToggle: true,
+      },
+    ],
+  },
+  {
     label: 'Account',
     items: [
-      { label: 'Profile',  icon: <AccountCircleRoundedIcon />, path: '/profile' },
       { label: 'Settings', icon: <SettingsRoundedIcon />,      path: '/settings' },
     ],
   },
@@ -109,7 +115,7 @@ const buildCategories = (userRole) => [
 
 // ─── NavItem ──────────────────────────────────────────────────────────────────
 
-function NavItem({ item, isOpen, isActive, onClick }) {
+function NavItem({ item, isOpen, isActive, onClick, T, themeMode }) {
   const button = (
     <ListItemButton
       onClick={onClick}
@@ -138,13 +144,27 @@ function NavItem({ item, isOpen, isActive, onClick }) {
         {item.icon}
       </ListItemIcon>
       {isOpen && (
-        <ListItemText
-          primary={item.label}
-          primaryTypographyProps={{
-            fontSize: 13, fontWeight: isActive ? 600 : 400,
-            color: T.textPrimary, letterSpacing: '-0.01em', whiteSpace: 'nowrap',
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+          <ListItemText
+            primary={item.label}
+            primaryTypographyProps={{
+              fontSize: 13, fontWeight: isActive ? 600 : 400,
+              color: T.textPrimary, letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+              overflow: 'hidden', textOverflow: 'ellipsis'
+            }}
+          />
+          {item.isToggle && (
+            <Switch 
+              size="small" 
+              checked={themeMode === 'dark'} 
+              sx={{ 
+                '& .MuiSwitch-switchBase': { color: '#94a3b8' },
+                '& .MuiSwitch-switchBase.Mui-checked': { color: T.accent },
+                '& .MuiSwitch-track': { bgcolor: 'rgba(255,255,255,0.1)' }
+              }}
+            />
+          )}
+        </Box>
       )}
     </ListItemButton>
   );
@@ -160,7 +180,7 @@ function NavItem({ item, isOpen, isActive, onClick }) {
 
 // ─── Category label ───────────────────────────────────────────────────────────
 
-function CategoryLabel({ label, isOpen, showDivider }) {
+function CategoryLabel({ label, isOpen, showDivider, T }) {
   if (!isOpen) return showDivider
     ? <Divider sx={{ mx: 1.5, my: 0.75, borderColor: T.divider }} />
     : null;
@@ -180,6 +200,9 @@ function CategoryLabel({ label, isOpen, showDivider }) {
 function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
+  const colorMode = useContext(ColorModeContext);
+  const T = getTokens(theme.palette.mode, theme);
 
   const [isOpen,    setIsOpen]    = useState(true);
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -200,16 +223,14 @@ function Navbar() {
   useEffect(() => {
     setAvatarUrl('');
     setImgError(false);
-    setUserId(null);       // ← force re-fetch of /api/me for the new user
-  }, [token]);             // ← re-runs every time a different token is present
+    setUserId(null);       
+  }, [token]);
 
-  // ── Fetch avatar from API ─────────────────────────────────────────────────
   const fetchUserData = useCallback(async () => {
     if (!token) return;
     const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
 
     try {
-      // ✅ Always resolve the user from the current token — don't reuse cached userId
       const meRes = await axios.get('http://127.0.0.1:8000/api/me', axiosConfig);
       const currentUserId = meRes.data.id;
       setUserId(currentUserId);
@@ -224,21 +245,15 @@ function Navbar() {
         setImgError(false);
       }
     } catch {
-      // Silently ignore
     }
-  }, [token]); // ← depend on token, not userId
+  }, [token]);
 
-  // Run once on mount
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
 
-  // ── Re-fetch when the Profile page fires 'avatarUpdated' ─────────────────
-  // In your Profile save handler, add ONE line after a successful upload:
-  //   window.dispatchEvent(new Event('avatarUpdated'));
 useEffect(() => {
   const handleStorageChange = (event) => {
-    // Only fetch if the modified key is specifically our 'token'
     if (event.key === 'token') {
       fetchUserData();
     }
@@ -256,7 +271,7 @@ useEffect(() => {
 
   if (location.pathname === '/login' || location.pathname === '/register') return null;
 
-  const categories  = buildCategories(userRole);
+  const categories  = buildCategories(userRole, theme.palette.mode, colorMode.toggleColorMode);
   const drawerWidth = isOpen ? DRAWER_OPEN_WIDTH : DRAWER_CLOSED_WIDTH;
   const showImage   = Boolean(avatarUrl) && !imgError;
 
@@ -321,7 +336,7 @@ useEffect(() => {
         <Avatar
           src={showImage ? avatarUrl : undefined}
           imgProps={{
-            onError: () => setImgError(true), // fall back to initials if URL breaks
+            onError: () => setImgError(true),
             referrerPolicy: 'no-referrer',
           }}
           sx={{
@@ -356,13 +371,15 @@ useEffect(() => {
       }}>
         {categories.map((cat, idx) => (
           <Box key={cat.label}>
-            <CategoryLabel label={cat.label} isOpen={isOpen} showDivider={idx > 0} />
+            <CategoryLabel label={cat.label} isOpen={isOpen} showDivider={idx > 0} T={T} />
             <List disablePadding>
               {cat.items.map((item) => (
                 <NavItem
-                  key={item.path} item={item} isOpen={isOpen}
+                  key={item.path || item.label} item={item} isOpen={isOpen}
                   isActive={location.pathname === item.path}
-                  onClick={() => navigate(item.path)}
+                  onClick={item.action ? item.action : () => navigate(item.path)}
+                  T={T}
+                  themeMode={theme.palette.mode}
                 />
               ))}
             </List>

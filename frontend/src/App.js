@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { getAppTheme } from './theme';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -9,72 +11,103 @@ import Profile from './pages/Profile';
 import AdminTeam from './pages/AdminTeam';
 import Navbar from './components/Navbar';
 import Projects from './pages/ProjectsPage';
-// 1. Import our new gatekeeper
+import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// Create a context for the color mode
+export const ColorModeContext = createContext({ toggleColorMode: () => {} });
 
 function App() {
+  // Initialize mode from localStorage or default to 'light'
+  const [mode, setMode] = useState(() => {
+    const savedMode = localStorage.getItem('app_mode');
+    return savedMode === 'dark' ? 'dark' : 'light';
+  });
+
+  const colorMode = useMemo(
+    () => ({
+      toggleColorMode: () => {
+        setMode((prevMode) => {
+          const nextMode = prevMode === 'light' ? 'dark' : 'light';
+          localStorage.setItem('app_mode', nextMode);
+          return nextMode;
+        });
+      },
+      mode,
+    }),
+    [mode]
+  );
+
+  const theme = useMemo(() => getAppTheme(mode), [mode]);
+
   return (
-    <BrowserRouter>
-    <Navbar/>
-      <Routes>
-        
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        
-        {/* Protected Admin Routes */}
-        <Route 
-          path="/admin" 
-          element={
-            // We wrap the dashboard inside the gatekeeper and pass the required role
-            <ProtectedRoute requiredRole="admin">
-              <AdminDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route
-          path="/team"
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminTeam />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/projects"
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <Projects />
-            </ProtectedRoute>
-          }
-        />
+    <ColorModeContext.Provider value={colorMode}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <BrowserRouter>
+          <Navbar />
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            
+            {/* Protected Admin Routes */}
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route
+              path="/team"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminTeam />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Projects />
+                </ProtectedRoute>
+              }
+            />
 
+            {/* Protected Employee Routes */}
+            <Route 
+              path="/employee" 
+              element={
+                <ProtectedRoute requiredRole="employee">
+                  <EmployeeDashboard />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* Protected Employee Routes */}
-        <Route 
-          path="/employee" 
-          element={
-            <ProtectedRoute requiredRole="employee">
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          } 
-        />
+            {/* Shared Protected Routes */}
+            <Route 
+              path="/profile" 
+              element={
+                <Navigate to="/settings" replace />
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* Protected Profile Route (Accessible to BOTH roles, so we don't pass a requiredRole) */}
-        <Route 
-          path="/profile" 
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          } 
-        />
-
-        <Route path="*" element={<Navigate to="/login" />} />
-
-      </Routes>
-    </BrowserRouter>
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
+    </ColorModeContext.Provider>
   );
 }
 

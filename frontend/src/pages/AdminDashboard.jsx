@@ -10,7 +10,7 @@ import {
   LinearProgress, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TableSortLabel, InputAdornment,
   ToggleButton, ToggleButtonGroup, Badge, Tooltip, Stack,
-  Skeleton, alpha
+  Skeleton, alpha, useTheme
 } from '@mui/material';
 
 import {
@@ -34,72 +34,33 @@ import {
   CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const NAVY    = '#1a1f36';
-const NAVY2   = '#252b45';
-const NAVY3   = '#2f3655';
-const ACCENT  = '#6c63ff';
-const TEAL    = '#00d4b4';
-const SURFACE = '#f8f9fc';
-const CARD_BG = '#ffffff';
-
-const STATUS_MAP = {
-  completed:   { label: 'Completed',   color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: CheckCircleIcon },
-  'in-progress':{ label: 'In Progress', color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: InProgressIcon },
-  pending:     { label: 'Pending',     color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', icon: PendingIcon },
-};
-
-const normaliseStatus = (s = 'pending') => {
-  const v = s.toLowerCase().replace(' ', '-');
-  return STATUS_MAP[v] ? v : 'pending';
-};
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, accent }) {
-  return (
-    <Card elevation={0} sx={{
-      border: '1px solid', borderColor: 'divider',
-      borderRadius: 2, bgcolor: CARD_BG, height: '100%'
-    }}>
-      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 1.5,
-            bgcolor: alpha(accent, 0.12),
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <Icon sx={{ fontSize: 20, color: accent }} />
-          </Box>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1 }}>{value}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{label}</Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
+import Notification from '../components/Notification';
+import StatCard from '../components/StatCard';
+import ClockWidget from '../components/ClockWidget';
+import { 
+  NAVY, NAVY2, NAVY3, ACCENT, TEAL, SURFACE, CARD_BG, 
+  STATUS_MAP, normaliseStatus 
+} from '../themeTokens';
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
 function TaskCard({ task }) {
+  const theme = useTheme();
   const statusKey = normaliseStatus(task.status);
   const s = STATUS_MAP[statusKey];
   const Icon = s.icon;
-  const progress = statusKey === 'completed' ? 100 : statusKey === 'in-progress' ? 55 : 10;
+  const progress = statusKey === 'completed' ? 100 : statusKey === 'in_progress' ? 55 : 10;
 
   return (
     <Card elevation={0} sx={{
       border: '1px solid', borderColor: 'divider',
       borderLeft: '4px solid', borderLeftColor: s.color,
-      borderRadius: 2, bgcolor: CARD_BG,
+      borderRadius: 2, bgcolor: 'background.paper',
       transition: 'box-shadow .15s',
       '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,.08)' }
     }}>
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-        {/* Header row */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1.3, flex: 1, pr: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3, flex: 1, pr: 2 }}>
             {task.title}
           </Typography>
           <Chip
@@ -119,7 +80,6 @@ function TaskCard({ task }) {
           {task.description || 'No description provided.'}
         </Typography>
 
-        {/* Progress bar */}
         <Box sx={{ mb: 2.5 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -137,7 +97,6 @@ function TaskCard({ task }) {
           />
         </Box>
 
-        {/* Assigned employees */}
         <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
           <Typography variant="caption" sx={{
             display: 'block', mb: 1, fontWeight: 600, color: 'text.secondary',
@@ -150,11 +109,11 @@ function TaskCard({ task }) {
               task.users.map(u => (
                 <Tooltip key={u.id} title={u.email || u.name}>
                   <Chip
-                    avatar={<Avatar sx={{ bgcolor: ACCENT, color: '#fff !important', fontSize: '0.65rem', fontWeight: 700 }}>{u.name.charAt(0)}</Avatar>}
+                    avatar={<Avatar src={u.avatar_url} sx={{ bgcolor: ACCENT, color: '#fff !important', fontSize: '0.65rem', fontWeight: 700 }}>{u.name.charAt(0)}</Avatar>}
                     label={u.name}
                     size="small"
                     variant="outlined"
-                    sx={{ borderColor: 'divider', color: 'text.primary', fontWeight: 500, bgcolor: SURFACE, fontSize: '0.75rem' }}
+                    sx={{ borderColor: 'divider', color: 'text.primary', fontWeight: 500, bgcolor: 'background.default', fontSize: '0.75rem' }}
                   />
                 </Tooltip>
               ))
@@ -170,6 +129,9 @@ function TaskCard({ task }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [tasks, setTasks]             = useState([]);
   const [employees, setEmployees]     = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -177,21 +139,20 @@ export default function AdminDashboard() {
   const [successMessage, setSuccess]  = useState('');
   const [activeTab, setActiveTab]     = useState(0);
 
-  // Task form
+  const [openNotif, setOpenNotif]     = useState(false);
+  const [notifSeverity, setNotifSeverity] = useState('info');
+
   const [title, setTitle]                 = useState('');
   const [description, setDescription]     = useState('');
   const [selectedUsers, setSelectedUsers] = useState([]);
 
-  // Employee list controls
   const [empSearch, setEmpSearch]     = useState('');
   const [empSort, setEmpSort]         = useState('name');
   const [empSortDir, setEmpSortDir]   = useState('asc');
 
-  // Task list controls
   const [taskSearch, setTaskSearch]         = useState('');
   const [taskStatusFilter, setTaskStatus]   = useState('all');
 
-  // Delete modal
   const [deleteOpen, setDeleteOpen]         = useState(false);
   const [targetEmployee, setTarget]         = useState(null);
   const [processingDelete, setDeleting]     = useState(false);
@@ -212,12 +173,13 @@ export default function AdminDashboard() {
       setTasks(tRes.data.tasks);
     } catch {
       setError('Failed to load dashboard data. Check your network connection.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Derived lists ─────────────────────────────────────────────────────────
   const filteredEmployees = useMemo(() => {
     let list = [...employees];
     if (empSearch) list = list.filter(e =>
@@ -238,29 +200,52 @@ export default function AdminDashboard() {
       t.title.toLowerCase().includes(taskSearch.toLowerCase()) ||
       (t.description || '').toLowerCase().includes(taskSearch.toLowerCase())
     );
-    if (taskStatusFilter !== 'all') list = list.filter(t => normaliseStatus(t.status) === taskStatusFilter);
+    if (taskStatusFilter === 'pending') {
+      list = list.filter(t => {
+        const s = normaliseStatus(t.status);
+        return s === 'pending' || s === 'in_progress';
+      });
+    } else if (taskStatusFilter === 'completed') {
+      list = list.filter(t => normaliseStatus(t.status) === 'completed');
+    }
     return list;
   }, [tasks, taskSearch, taskStatusFilter]);
 
-  const stats = useMemo(() => ({
-    total:      tasks.length,
-    completed:  tasks.filter(t => normaliseStatus(t.status) === 'completed').length,
-    inProgress: tasks.filter(t => normaliseStatus(t.status) === 'in-progress').length,
-    pending:    tasks.filter(t => normaliseStatus(t.status) === 'pending').length,
-  }), [tasks]);
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter(t => normaliseStatus(t.status) === 'completed').length;
+    const pendingAndActive = tasks.filter(t => {
+      const s = normaliseStatus(t.status);
+      return s === 'pending' || s === 'in_progress';
+    }).length;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+    return {
+      total,
+      completed,
+      pending: pendingAndActive,
+    };
+  }, [tasks]);
+
   const handleCreateTask = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    if (!selectedUsers.length) { setError('Assign at least one employee to this task.'); return; }
+    if (!selectedUsers.length) { 
+      setError('Assign at least one employee to this task.'); 
+      setNotifSeverity('error');
+      setOpenNotif(true);
+      return; 
+    }
     try {
       await axios.post('http://127.0.0.1:8000/api/tasks', { title, description, user_ids: selectedUsers }, axiosConfig);
       setSuccess('Task created and assigned successfully!');
+      setNotifSeverity('success');
+      setOpenNotif(true);
       setTitle(''); setDescription(''); setSelectedUsers([]);
       fetchData();
     } catch {
       setError('Failed to create task. Please check the form values.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
     }
   };
 
@@ -272,10 +257,14 @@ export default function AdminDashboard() {
     try {
       await axios.delete(`http://127.0.0.1:8000/api/users/${targetEmployee.id}`, axiosConfig);
       setSuccess(`${targetEmployee.name} has been removed successfully.`);
+      setNotifSeverity('success');
+      setOpenNotif(true);
       setEmployees(prev => prev.filter(e => e.id !== targetEmployee.id));
       setTasks(prev => prev.map(t => ({ ...t, users: t.users?.filter(u => u.id !== targetEmployee.id) ?? [] })));
     } catch {
       setError('Failed to remove employee. Please try again.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
     } finally {
       setDeleting(false); setDeleteOpen(false); setTarget(null);
     }
@@ -286,7 +275,6 @@ export default function AdminDashboard() {
     else { setEmpSort(col); setEmpSortDir('asc'); }
   };
 
-  // ── Skeleton loaders ──────────────────────────────────────────────────────
   if (loading) return (
     <Box sx={{ p: 4, maxWidth: 1280, mx: 'auto' }}>
       <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
@@ -300,24 +288,23 @@ export default function AdminDashboard() {
     </Box>
   );
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Box sx={{
       p: { xs: 2, sm: 3, md: 4 },
-      bgcolor: SURFACE,
+      bgcolor: 'background.default',
       minHeight: '100vh',
       boxSizing: 'border-box',
       maxWidth: 1280, mx: 'auto',
     }}>
-      {/* ── Page header ── */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: NAVY, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
             Admin Dashboard
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
             Manage your team and track task execution
           </Typography>
+          <ClockWidget />
         </Box>
         <Tooltip title="Refresh data">
           <IconButton
@@ -329,11 +316,6 @@ export default function AdminDashboard() {
         </Tooltip>
       </Box>
 
-      {/* ── Alerts ── */}
-      {errorMessage   && <Alert severity="error"   onClose={() => setError('')}   sx={{ mb: 2.5, borderRadius: 1.5 }}>{errorMessage}</Alert>}
-      {successMessage && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2.5, borderRadius: 1.5 }}>{successMessage}</Alert>}
-
-      {/* ── Stat cards ── */}
       <Grid container spacing={2} sx={{ mb: 3.5 }}>
         <Grid item xs={6} sm={3}><StatCard icon={TaskAltIcon}    label="Total Tasks"   value={stats.total}      accent={ACCENT}    /></Grid>
         <Grid item xs={6} sm={3}><StatCard icon={CheckCircleIcon} label="Completed"    value={stats.completed}  accent="#059669"   /></Grid>
@@ -341,7 +323,6 @@ export default function AdminDashboard() {
         <Grid item xs={6} sm={3}><StatCard icon={PeopleIcon}      label="Employees"    value={employees.length} accent={TEAL}      /></Grid>
       </Grid>
 
-      {/* ── Main two-column layout ── */}
       <Box sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', md: '420px 1fr' },
@@ -349,12 +330,10 @@ export default function AdminDashboard() {
         alignItems: 'start',
       }}>
 
-        {/* ── LEFT: Tabs panel ── */}
         <Paper elevation={0} sx={{
           border: '1px solid', borderColor: 'divider',
-          borderRadius: 2, bgcolor: CARD_BG,
+          borderRadius: 2, bgcolor: 'background.paper',
           overflow: 'hidden',
-          // Keep it from growing taller than the right column
           minWidth: 0,
         }}>
           <Tabs
@@ -362,13 +341,13 @@ export default function AdminDashboard() {
             onChange={(_, v) => setActiveTab(v)}
             variant="fullWidth"
             sx={{
-              bgcolor: NAVY,
+              bgcolor: isDark ? alpha('#fff', 0.03) : '#0f172a',
               '& .MuiTab-root': {
-                color: 'rgba(255,255,255,0.55)', fontWeight: 600,
+                color: isDark ? 'text.secondary' : 'rgba(255,255,255,0.55)', fontWeight: 600,
                 fontSize: '0.8rem', minHeight: 48,
                 textTransform: 'none', letterSpacing: '0.02em',
               },
-              '& .Mui-selected': { color: '#ffffff !important' },
+              '& .Mui-selected': { color: isDark ? 'text.primary' : '#ffffff !important' },
               '& .MuiTabs-indicator': { bgcolor: TEAL, height: 3 },
             }}
           >
@@ -382,7 +361,7 @@ export default function AdminDashboard() {
                 <Badge
                   badgeContent={employees.length}
                   color="primary"
-                  sx={{ '& .MuiBadge-badge': { bgcolor: TEAL, color: NAVY, fontWeight: 700, fontSize: '0.6rem' } }}
+                  sx={{ '& .MuiBadge-badge': { bgcolor: TEAL, color: '#0f172a', fontWeight: 700, fontSize: '0.6rem' } }}
                 >
                   <BadgeIcon sx={{ fontSize: 17 }} />
                 </Badge>
@@ -392,10 +371,9 @@ export default function AdminDashboard() {
             />
           </Tabs>
 
-          {/* PANEL 0: Create Task */}
           {activeTab === 0 && (
             <Box sx={{ p: 3 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: NAVY, mb: 2.5 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', mb: 2.5 }}>
                 New Task Assignment
               </Typography>
 
@@ -433,7 +411,7 @@ export default function AdminDashboard() {
                     {employees.map(emp => (
                       <MenuItem key={emp.id} value={emp.id}>
                         <ListItemAvatar sx={{ minWidth: 36 }}>
-                          <Avatar sx={{ width: 26, height: 26, bgcolor: ACCENT, fontSize: '0.7rem', fontWeight: 700 }}>
+                          <Avatar src={emp.avatar_url} sx={{ width: 26, height: 26, bgcolor: ACCENT, fontSize: '0.7rem', fontWeight: 700 }}>
                             {emp.name.charAt(0)}
                           </Avatar>
                         </ListItemAvatar>
@@ -450,9 +428,11 @@ export default function AdminDashboard() {
                   type="submit" variant="contained" fullWidth size="large"
                   startIcon={<AddIcon />}
                   sx={{
-                    bgcolor: NAVY, color: '#fff', fontWeight: 700, letterSpacing: '0.02em',
+                    bgcolor: isDark ? 'primary.main' : '#0f172a', 
+                    color: isDark ? 'primary.contrastText' : '#fff', 
+                    fontWeight: 700, letterSpacing: '0.02em',
                     borderRadius: 1.5, py: 1.4, textTransform: 'none',
-                    '&:hover': { bgcolor: NAVY3 },
+                    '&:hover': { bgcolor: isDark ? alpha(theme.palette.primary.main, 0.9) : '#2f3655' },
                     boxShadow: 'none',
                   }}
                 >
@@ -462,10 +442,8 @@ export default function AdminDashboard() {
             </Box>
           )}
 
-          {/* PANEL 1: Employee management */}
           {activeTab === 1 && (
             <Box>
-              {/* Controls bar */}
               <Box sx={{
                 p: 2,
                 borderBottom: '1px solid', borderColor: 'divider',
@@ -507,14 +485,12 @@ export default function AdminDashboard() {
                 </Tooltip>
               </Box>
 
-              {/* Results count */}
-              <Box sx={{ px: 2.5, py: 1.25, bgcolor: SURFACE, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ px: 2.5, py: 1.25, bgcolor: isDark ? alpha('#fff', 0.01) : '#f8fafc', borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>
                   {filteredEmployees.length} of {employees.length} employees
                 </Typography>
               </Box>
 
-              {/* Employee table */}
               {filteredEmployees.length === 0 ? (
                 <Box sx={{ p: 5, textAlign: 'center' }}>
                   <PeopleIcon sx={{ fontSize: 40, color: 'divider', mb: 1 }} />
@@ -526,7 +502,7 @@ export default function AdminDashboard() {
                     <TableHead>
                       <TableRow>
                         <TableCell sx={{
-                          bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem',
+                          bgcolor: isDark ? alpha('#fff', 0.02) : '#f8fafc', fontWeight: 700, fontSize: '0.7rem',
                           letterSpacing: '0.06em', textTransform: 'uppercase',
                           color: 'text.secondary', pl: 2.5,
                         }}>
@@ -539,7 +515,7 @@ export default function AdminDashboard() {
                           </TableSortLabel>
                         </TableCell>
                         <TableCell sx={{
-                          bgcolor: SURFACE, fontWeight: 700, fontSize: '0.7rem',
+                          bgcolor: isDark ? alpha('#fff', 0.02) : '#f8fafc', fontWeight: 700, fontSize: '0.7rem',
                           letterSpacing: '0.06em', textTransform: 'uppercase',
                           color: 'text.secondary',
                         }}>
@@ -551,7 +527,7 @@ export default function AdminDashboard() {
                             Contact
                           </TableSortLabel>
                         </TableCell>
-                        <TableCell sx={{ bgcolor: SURFACE, width: 48 }} />
+                        <TableCell sx={{ bgcolor: isDark ? alpha('#fff', 0.02) : '#f8fafc', width: 48 }} />
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -560,22 +536,25 @@ export default function AdminDashboard() {
                         return (
                           <TableRow
                             key={emp.id}
-                            sx={{ '&:hover': { bgcolor: SURFACE }, '&:last-child td': { border: 0 } }}
+                            sx={{ '&:hover': { bgcolor: isDark ? alpha('#fff', 0.02) : SURFACE }, '&:last-child td': { border: 0 } }}
                           >
                             <TableCell sx={{ py: 1.5, pl: 2.5 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                                <Avatar sx={{
-                                  width: 32, height: 32,
-                                  bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
-                                  fontSize: '0.8rem', fontWeight: 700,
-                                  border: '1.5px solid', borderColor: alpha(ACCENT, 0.25),
-                                  flexShrink: 0,
-                                }}>
+                                <Avatar 
+                                  src={emp.avatar_url}
+                                  sx={{
+                                    width: 32, height: 32,
+                                    bgcolor: alpha(ACCENT, 0.15), color: ACCENT,
+                                    fontSize: '0.8rem', fontWeight: 700,
+                                    border: '1.5px solid', borderColor: alpha(ACCENT, 0.25),
+                                    flexShrink: 0,
+                                  }}
+                                >
                                   {emp.name.charAt(0)}
                                 </Avatar>
                                 <Box sx={{ minWidth: 0 }}>
                                   <Typography
-                                    variant="body2" fontWeight={600} color={NAVY}
+                                    variant="body2" fontWeight={600} color="text.primary"
                                     sx={{ lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                   >
                                     {emp.name}
@@ -625,29 +604,22 @@ export default function AdminDashboard() {
           )}
         </Paper>
 
-        {/* ── RIGHT: Task board — always stays right ── */}
-{/* ── RIGHT: Task board — Fixed height with independent vertical scroll ── */}
         <Box sx={{ 
           minWidth: 0, 
           width: '100%',
-          
-          // 1. SCROLL BOUNDARY: Force a strict height and enable auto-scrolling
-          height: 'calc(100vh - 240px)', // Dynamically sizes to fit the screen minus headers
-          minHeight: 500,                // Prevents the board from squishing too small on short screens
-          overflowY: 'auto',             // Enables vertical scrolling when content overflows
-          pr: 1.5,                       // Adds a tiny bit of padding so cards don't rub against the scrollbar
-          
-          // 2. PREMIUM SCROLLBAR STYLING (Optional but highly recommended for enterprise UIs)
+          height: 'calc(100vh - 240px)', 
+          minHeight: 500,                
+          overflowY: 'auto',             
+          pr: 1.5,                       
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
           '&::-webkit-scrollbar-thumb': { 
-            bgcolor: 'rgba(0,0,0,0.08)', 
+            bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', 
             borderRadius: '4px',
-            '&:hover': { bgcolor: 'rgba(0,0,0,0.15)' }
+            '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' }
           },
         }}>
           
-          {/* Filter / search bar (Sticky positioning optional: add position:'sticky', top:0, bgcolor:SURFACE, zIndex:1 if you want this bar to stay visible while scrolling!) */}
           <Box sx={{
             display: 'flex', gap: 1.5, mb: 2.5,
             flexWrap: 'wrap', alignItems: 'center',
@@ -677,20 +649,18 @@ export default function AdminDashboard() {
                   border: '1px solid', borderColor: 'divider', color: 'text.secondary',
                 },
                 '& .Mui-selected': {
-                  bgcolor: `${NAVY} !important`,
-                  color: '#fff !important',
-                  borderColor: `${NAVY} !important`,
+                  bgcolor: isDark ? 'primary.main' : '#0f172a',
+                  color: isDark ? 'primary.contrastText' : '#fff',
+                  borderColor: isDark ? 'primary.main' : '#0f172a',
                 },
               }}
             >
               <ToggleButton value="all">All ({stats.total})</ToggleButton>
-              <ToggleButton value="pending">Pending</ToggleButton>
-              <ToggleButton value="in-progress">Active</ToggleButton>
-              <ToggleButton value="completed">Done</ToggleButton>
+              <ToggleButton value="pending">Pending ({stats.pending})</ToggleButton>
+              <ToggleButton value="completed">Done ({stats.completed})</ToggleButton>
             </ToggleButtonGroup>
           </Box>
 
-          {/* Task count */}
           <Typography
             variant="caption" color="text.secondary" fontWeight={600}
             sx={{ display: 'block', mb: 1.5, letterSpacing: '0.04em' }}
@@ -698,11 +668,11 @@ export default function AdminDashboard() {
             SHOWING {filteredTasks.length} TASK{filteredTasks.length !== 1 ? 'S' : ''}
           </Typography>
 
-          {/* Task cards */}
           {filteredTasks.length === 0 ? (
             <Paper elevation={0} sx={{
               p: 6, textAlign: 'center',
               border: '1px solid', borderColor: 'divider', borderRadius: 2,
+              bgcolor: 'background.paper'
             }}>
               <TaskAltIcon sx={{ fontSize: 48, color: 'divider', mb: 1 }} />
               <Typography variant="body2" color="text.secondary">
@@ -718,18 +688,17 @@ export default function AdminDashboard() {
           )}
         </Box>
 
-      </Box>{/* end main grid */}
+      </Box>
 
-      {/* ── Delete confirmation modal ── */}
       <Dialog
         open={deleteOpen}
         onClose={() => !processingDelete && setDeleteOpen(false)}
         PaperProps={{
           elevation: 0,
-          sx: { border: '1px solid', borderColor: 'divider', borderRadius: 2, maxWidth: 440 }
+          sx: { border: '1px solid', borderColor: 'divider', borderRadius: 2, maxWidth: 440, bgcolor: 'background.paper' }
         }}
       >
-        <DialogTitle sx={{ color: NAVY, fontWeight: 700, pb: 1 }}>
+        <DialogTitle sx={{ color: 'text.primary', fontWeight: 700, pb: 1 }}>
           Remove Employee?
         </DialogTitle>
         <DialogContent sx={{ pb: 2 }}>
@@ -739,14 +708,14 @@ export default function AdminDashboard() {
           {targetEmployee && (
             <Box sx={{
               display: 'flex', alignItems: 'center', gap: 1.5,
-              my: 2, p: 2, bgcolor: SURFACE,
+              my: 2, p: 2, bgcolor: 'background.default',
               borderRadius: 1.5, border: '1px solid', borderColor: 'divider',
             }}>
-              <Avatar sx={{ bgcolor: alpha(ACCENT, 0.15), color: ACCENT, fontWeight: 700 }}>
+              <Avatar src={targetEmployee.avatar_url} sx={{ bgcolor: alpha(ACCENT, 0.15), color: ACCENT, fontWeight: 700 }}>
                 {targetEmployee.name.charAt(0)}
               </Avatar>
               <Box>
-                <Typography variant="body2" fontWeight={700} color={NAVY}>{targetEmployee.name}</Typography>
+                <Typography variant="body2" fontWeight={700} color="text.primary">{targetEmployee.name}</Typography>
                 <Typography variant="caption" color="text.secondary">{targetEmployee.email}</Typography>
               </Box>
             </Box>
@@ -775,6 +744,12 @@ export default function AdminDashboard() {
         </DialogActions>
       </Dialog>
 
+      <Notification 
+        open={openNotif} 
+        message={errorMessage || successMessage} 
+        severity={notifSeverity} 
+        onClose={() => setOpenNotif(false)} 
+      />
     </Box>
   );
 }

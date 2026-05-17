@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { 
+  NAVY, NAVY2, NAVY3, ACCENT, TEAL, SURFACE, CARD_BG, 
+  STATUS_MAP, normaliseStatus 
+} from '../themeTokens'; 
 import {
   Box, Typography, Paper, Alert, Chip, Button, LinearProgress,
   Card, CardContent, Stack, Skeleton, Tooltip, IconButton,
   InputAdornment, TextField, ToggleButton, ToggleButtonGroup,
-  Avatar, alpha,
+  Avatar, alpha, useTheme
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -17,56 +21,13 @@ import {
   Search as SearchIcon,
   Assignment as AssignmentIcon,
 } from '@mui/icons-material';
-
-// ─── Design tokens (identical to AdminDashboard) ──────────────────────────────
-const NAVY    = '#1a1f36';
-const NAVY2   = '#252b45';
-const NAVY3   = '#2f3655';
-const ACCENT  = '#6c63ff';
-const TEAL    = '#00d4b4';
-const SURFACE = '#f8f9fc';
-const CARD_BG = '#ffffff';
-
-const STATUS_MAP = {
-  completed:   { label: 'Completed',   color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: CheckCircleIcon },
-  in_progress: { label: 'In Progress', color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: InProgressIcon },
-  pending:     { label: 'Pending',     color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', icon: PendingIcon },
-};
-
-const normaliseStatus = (s = 'pending') => {
-  const v = s.toLowerCase().replace('-', '_');
-  return STATUS_MAP[v] ? v : 'pending';
-};
-
-// ─── Stat Card (same as AdminDashboard) ───────────────────────────────────────
-function StatCard({ icon: Icon, label, value, accent }) {
-  return (
-    <Card elevation={0} sx={{
-      border: '1px solid', borderColor: 'divider',
-      borderRadius: 2, bgcolor: CARD_BG, height: '100%',
-    }}>
-      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 1.5,
-            bgcolor: alpha(accent, 0.12),
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <Icon sx={{ fontSize: 20, color: accent }} />
-          </Box>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1 }}>{value}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{label}</Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
+import Notification from '../components/Notification';
+import StatCard from '../components/StatCard';
+import ClockWidget from '../components/ClockWidget';
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
 function TaskCard({ task, onUpdateStatus }) {
+  const theme = useTheme();
   const statusKey = normaliseStatus(task.status);
   const s = STATUS_MAP[statusKey];
   const Icon = s.icon;
@@ -75,14 +36,13 @@ function TaskCard({ task, onUpdateStatus }) {
     <Card elevation={0} sx={{
       border: '1px solid', borderColor: 'divider',
       borderLeft: '4px solid', borderLeftColor: s.color,
-      borderRadius: 2, bgcolor: CARD_BG,
+      borderRadius: 2, bgcolor: 'background.paper',
       transition: 'box-shadow .15s',
       '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,.08)' },
     }}>
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-        {/* Header row */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: NAVY, lineHeight: 1.3, flex: 1, pr: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3, flex: 1, pr: 2 }}>
             {task.title}
           </Typography>
           <Chip
@@ -102,14 +62,13 @@ function TaskCard({ task, onUpdateStatus }) {
           {task.description || 'No description provided.'}
         </Typography>
 
-        {/* Action footer */}
-        <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2, display: 'flex', justifyContent: 'flex-end' }}>  
           {statusKey === 'pending' && (
             <Button
               size="small"
               variant="outlined"
               startIcon={<PlayArrowIcon sx={{ fontSize: 14 }} />}
-              onClick={() => onUpdateStatus(task.id, 'in_progress')}
+              onClick={() => onUpdateStatus && onUpdateStatus(task.id, 'in_progress')}
               sx={{
                 fontSize: '0.75rem', fontWeight: 700, textTransform: 'none',
                 borderColor: ACCENT, color: ACCENT, borderRadius: 1.5,
@@ -124,7 +83,7 @@ function TaskCard({ task, onUpdateStatus }) {
               size="small"
               variant="contained"
               startIcon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
-              onClick={() => onUpdateStatus(task.id, 'completed')}
+              onClick={() => onUpdateStatus && onUpdateStatus(task.id, 'completed')}
               sx={{
                 fontSize: '0.75rem', fontWeight: 700, textTransform: 'none',
                 bgcolor: '#059669', color: '#fff', borderRadius: 1.5, boxShadow: 'none',
@@ -150,10 +109,16 @@ function TaskCard({ task, onUpdateStatus }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function EmployeeDashboard() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [tasks, setTasks]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
   const [success, setSuccess]   = useState('');
+
+  const [openNotif, setOpenNotif]     = useState(false);
+  const [notifSeverity, setNotifSeverity] = useState('info');
 
   const [taskSearch, setTaskSearch]       = useState('');
   const [taskStatusFilter, setTaskStatus] = useState('active');
@@ -171,6 +136,8 @@ export default function EmployeeDashboard() {
       setTasks(res.data.tasks);
     } catch {
       setError('Failed to load tasks. Check your connection and try again.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
     } finally {
       setLoading(false);
     }
@@ -180,13 +147,18 @@ export default function EmployeeDashboard() {
     setError(''); setSuccess('');
     try {
       await axios.patch(`http://127.0.0.1:8000/api/tasks/${taskId}/status`, { status: newStatus }, axiosConfig);
-      setSuccess(`Task moved to "${STATUS_MAP[newStatus]?.label}".`);
+      const msg = `Task moved to "${STATUS_MAP[newStatus]?.label}".`;
+      setSuccess(msg);
+      setNotifSeverity('success');
+      setOpenNotif(true);
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-      setTimeout(() => setSuccess(''), 3500);
     } catch (err) {
-      setError(err.response?.status === 403
+      const msg = err.response?.status === 403
         ? "You don't have permission to update this task."
-        : 'Status update failed. Please try again.');
+        : 'Status update failed. Please try again.';
+      setError(msg);
+      setNotifSeverity('error');
+      setOpenNotif(true);
     }
   };
 
@@ -205,13 +177,11 @@ export default function EmployeeDashboard() {
     );
     if (taskStatusFilter === 'active') list = list.filter(t => normaliseStatus(t.status) !== 'completed');
     else if (taskStatusFilter !== 'all') list = list.filter(t => normaliseStatus(t.status) === taskStatusFilter);
-    // Sort: in_progress → pending → completed
     const order = { in_progress: 0, pending: 1, completed: 2 };
     list.sort((a, b) => (order[normaliseStatus(a.status)] ?? 3) - (order[normaliseStatus(b.status)] ?? 3));
     return list;
   }, [tasks, taskSearch, taskStatusFilter]);
 
-  // ── Skeleton loader ───────────────────────────────────────────────────────
   if (loading) return (
     <Box sx={{ p: 4, maxWidth: 900, mx: 'auto' }}>
       <Skeleton variant="text" width={280} height={48} sx={{ mb: 3 }} />
@@ -224,24 +194,24 @@ export default function EmployeeDashboard() {
     </Box>
   );
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Box sx={{
       p: { xs: 2, sm: 3, md: 4 },
-      bgcolor: SURFACE,
+      bgcolor: 'background.default',
       minHeight: '100vh',
       boxSizing: 'border-box',
       maxWidth: 900, mx: 'auto',
     }}>
-      {/* ── Page header (same pattern as AdminDashboard) ── */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: NAVY, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
             My Tasks
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
             Your assigned work and current progress
           </Typography>
+
+          <ClockWidget />
         </Box>
         <Tooltip title="Refresh tasks">
           <IconButton
@@ -253,11 +223,6 @@ export default function EmployeeDashboard() {
         </Tooltip>
       </Box>
 
-      {/* ── Alerts ── */}
-      {error   && <Alert severity="error"   onClose={() => setError('')}   sx={{ mb: 2.5, borderRadius: 1.5 }}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2.5, borderRadius: 1.5 }}>{success}</Alert>}
-
-      {/* ── Stat cards (same component as AdminDashboard) ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3.5 }}>
         <StatCard icon={AssignmentIcon}  label="Total Tasks"   value={stats.total}      accent={ACCENT}    />
         <StatCard icon={CheckCircleIcon} label="Completed"     value={stats.completed}  accent="#059669"   />
@@ -265,9 +230,8 @@ export default function EmployeeDashboard() {
         <StatCard icon={PendingIcon}     label="Pending"       value={stats.pending}    accent="#6366f1"   />
       </Box>
 
-      {/* ── Overall progress bar ── */}
       {stats.total > 0 && (
-        <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: CARD_BG, mb: 3.5, px: 3, py: 2.5 }}>
+        <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', mb: 3.5, px: 3, py: 2.5 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Overall Completion
@@ -301,19 +265,18 @@ export default function EmployeeDashboard() {
         </Card>
       )}
 
-      {/* ── Task board panel ── */}
       <Paper elevation={0} sx={{
         border: '1px solid', borderColor: 'divider',
-        borderRadius: 2, bgcolor: CARD_BG, overflow: 'hidden',
+        borderRadius: 2, bgcolor: 'background.paper', overflow: 'hidden',
       }}>
-        {/* Panel header bar (mimics the Tabs header in AdminDashboard) */}
         <Box sx={{
-          bgcolor: NAVY, px: 3, py: 2,
+          bgcolor: isDark ? alpha('#fff', 0.03) : '#0f172a', px: 3, py: 2,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid', borderColor: 'divider',
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TaskAltIcon sx={{ fontSize: 17, color: TEAL }} />
-            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', color: '#fff', letterSpacing: '0.02em' }}>
+            <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', color: isDark ? 'text.primary' : '#fff', letterSpacing: '0.02em' }}>
               Task Board
             </Typography>
           </Box>
@@ -327,12 +290,11 @@ export default function EmployeeDashboard() {
           </Box>
         </Box>
 
-        {/* Filter / search bar */}
         <Box sx={{
           px: 3, py: 2,
           display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap',
           borderBottom: '1px solid', borderColor: 'divider',
-          bgcolor: SURFACE,
+          bgcolor: isDark ? alpha('#fff', 0.015) : '#f8f9fc',
         }}>
           <TextField
             placeholder="Search tasks…"
@@ -361,9 +323,9 @@ export default function EmployeeDashboard() {
                 border: '1px solid', borderColor: 'divider', color: 'text.secondary',
               },
               '& .Mui-selected': {
-                bgcolor: `${NAVY} !important`,
-                color: '#fff !important',
-                borderColor: `${NAVY} !important`,
+                bgcolor: isDark ? 'primary.main' : '#0f172a',
+                color: isDark ? 'primary.contrastText' : '#fff',
+                borderColor: isDark ? 'primary.main' : '#0f172a',
               },
             }}
           >
@@ -375,14 +337,12 @@ export default function EmployeeDashboard() {
           </ToggleButtonGroup>
         </Box>
 
-        {/* Task count label */}
         <Box sx={{ px: 3, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="caption" color="text.secondary" fontWeight={600}>
             SHOWING {filteredTasks.length} TASK{filteredTasks.length !== 1 ? 'S' : ''}
           </Typography>
         </Box>
 
-        {/* Task cards */}
         <Box sx={{ p: 3 }}>
           {filteredTasks.length === 0 ? (
             <Box sx={{ py: 6, textAlign: 'center' }}>
@@ -402,6 +362,13 @@ export default function EmployeeDashboard() {
           )}
         </Box>
       </Paper>
+
+      <Notification 
+        open={openNotif} 
+        message={error || success} 
+        severity={notifSeverity} 
+        onClose={() => setOpenNotif(false)} 
+      />
     </Box>
   );
 }

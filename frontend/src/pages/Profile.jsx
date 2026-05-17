@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { 
+  NAVY, NAVY2, NAVY3, ACCENT, TEAL, SURFACE, CARD_BG, 
+  STATUS_MAP, normaliseStatus 
+} from '../themeTokens'; // Adjust the '../' path depending on what folder your page is in
 import {
   Box, Typography, Paper, TextField, Button, Alert,
   Avatar, CircularProgress, Divider, Card, CardContent,
@@ -14,14 +18,7 @@ import {
   BadgeOutlined as BadgeIcon,
   EditOutlined as EditIcon,
 } from '@mui/icons-material';
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const NAVY    = '#1a1f36';
-const NAVY3   = '#2f3655';
-const ACCENT  = '#6c63ff';
-const TEAL    = '#00d4b4';
-const SURFACE = '#f8f9fc';
-const CARD_BG = '#ffffff';
+import Notification from '../components/Notification';
 
 // ─── Field Row ────────────────────────────────────────────────────────────────
 function FieldRow({ icon: Icon, label, children }) {
@@ -61,6 +58,9 @@ export default function Profile() {
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState('');
   const [success, setSuccess]         = useState('');
+
+  const [openNotif, setOpenNotif]     = useState(false);
+  const [notifSeverity, setNotifSeverity] = useState('info');
 
   const token = localStorage.getItem('token');
   const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
@@ -134,6 +134,8 @@ export default function Profile() {
       }
 
       setSuccess('Profile updated successfully.');
+      setNotifSeverity('success');
+      setOpenNotif(true);
       setPassword('');
       photoFileRef.current = null;
       setPhotoFile(null);
@@ -143,6 +145,8 @@ export default function Profile() {
       setError(err.response?.status === 422
         ? 'Validation error: check your email and ensure the image is under 2 MB.'
         : 'Failed to update profile. Please try again.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
     } finally {
       setSaving(false);
     }
@@ -176,10 +180,6 @@ export default function Profile() {
         </Typography>
       </Box>
 
-      {/* ── Alerts ── */}
-      {error   && <Alert severity="error"   onClose={() => setError('')}   sx={{ mb: 2.5, borderRadius: 1.5 }}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2.5, borderRadius: 1.5 }}>{success}</Alert>}
-
       <Box component="form" onSubmit={handleSave} encType="multipart/form-data" sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', md: '220px 1fr' },
@@ -206,14 +206,14 @@ export default function Profile() {
                 {!photoPreview && !avatarUrl && initials}
               </Avatar>
               {/* Edit overlay hint */}
-              <Box sx={{
+              {/* <Box sx={{
                 position: 'absolute', bottom: 0, right: 0,
                 width: 28, height: 28, borderRadius: '50%',
                 bgcolor: NAVY, border: '2px solid #fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <EditIcon sx={{ fontSize: 13, color: '#fff' }} />
-              </Box>
+              </Box> */}
             </Box>
 
             {/* Name + role */}
@@ -338,6 +338,13 @@ export default function Profile() {
         </Card>
 
       </Box>
+
+      <Notification 
+        open={openNotif} 
+        message={error || success} 
+        severity={notifSeverity} 
+        onClose={() => setOpenNotif(false)} 
+      />
     </Box>
   );
 }

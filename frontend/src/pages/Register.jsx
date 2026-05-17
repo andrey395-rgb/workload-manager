@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 // Import Material UI components for a clean, unified structure
-import { Box, TextField, Button, Typography, Alert, Paper } from '@mui/material';
+import { Box, TextField, Button, Typography, Paper } from '@mui/material';
+import Notification from '../components/Notification';
+import WelcomeOverlay from '../components/WelcomeOverlay';
 
 function Register() {
   const [name, setName] = useState('');
@@ -13,6 +15,11 @@ function Register() {
 
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [openNotif, setOpenNotif] = useState(false);
+
+  // Welcome state
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [targetRole, setTargetRole] = useState('');
 
   const navigate = useNavigate();
 
@@ -22,6 +29,7 @@ function Register() {
 
     if (password !== confirmPassword) {
       setErrorMessage('Passwords do not match. Please verify your entries.');
+      setOpenNotif(true);
       return;
     }
 
@@ -34,16 +42,14 @@ function Register() {
         password: password,
       });
 
-      const { token, role } = response.data;
+      const { token, role, user } = response.data;
 
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
+      localStorage.setItem('username', user.name);
 
-      if (role === 'admin') {
-        navigate('/admin', { replace: true });
-      } else {
-        navigate('/employee', { replace: true });
-      }
+      setTargetRole(role);
+      setShowWelcome(true);
 
     } catch (error) {
       if (error.response && error.response.status === 422) {
@@ -51,10 +57,23 @@ function Register() {
       } else {
         setErrorMessage('Connection failed. Ensure the target server link is established.');
       }
+      setOpenNotif(true);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleWelcomeFinish = () => {
+    if (targetRole === 'admin') {
+      navigate('/admin', { replace: true });
+    } else {
+      navigate('/employee', { replace: true });
+    }
+  };
+
+  if (showWelcome) {
+    return <WelcomeOverlay username={name} onFinish={handleWelcomeFinish} />;
+  }
 
   return (
     // Unified soft slate canvas
@@ -87,12 +106,6 @@ function Register() {
         >
           Initialize Account
         </Typography>
-
-        {errorMessage && (
-          <Alert severity="error" sx={{ mb: 3, borderRadius: 1.5 }}>
-            {errorMessage}
-          </Alert>
-        )}
 
         <form onSubmit={handleRegister}>
           
@@ -160,6 +173,13 @@ function Register() {
 
         </form>
       </Paper>
+
+      <Notification 
+        open={openNotif} 
+        message={errorMessage} 
+        severity="error" 
+        onClose={() => setOpenNotif(false)} 
+      />
     </Box>
   );
 }
