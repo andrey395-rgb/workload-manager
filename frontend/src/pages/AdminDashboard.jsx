@@ -31,7 +31,8 @@ import {
   MoreVert as MoreVertIcon,
   EmailOutlined as EmailIcon,
   WorkOutline as WorkIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  FolderOutlined as FolderIcon
 } from '@mui/icons-material';
 
 import Notification from '../components/Notification';
@@ -43,7 +44,7 @@ import {
 } from '../themeTokens';
 
 // ─── Task Card ────────────────────────────────────────────────────────────────
-function TaskCard({ task }) {
+function TaskCard({ task, onEditAssignment }) {
   const theme = useTheme();
   const statusKey = normaliseStatus(task.status);
   const s = STATUS_MAP[statusKey];
@@ -60,9 +61,14 @@ function TaskCard({ task }) {
     }}>
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3, flex: 1, pr: 2 }}>
-            {task.title}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flex: 1, pr: 2 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, bgcolor: 'action.hover', px: 0.8, py: 0.3, borderRadius: 0.5, fontSize: '0.7rem' }}>
+              #{task.task_number}
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}>
+              {task.title}
+            </Typography>
+          </Box>
           <Chip
             icon={<Icon sx={{ fontSize: '14px !important', color: `${s.color} !important` }} />}
             label={s.label}
@@ -74,6 +80,13 @@ function TaskCard({ task }) {
               '& .MuiChip-label': { px: 1 }
             }}
           />
+        </Box>
+
+        <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <WorkIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+            {task.project?.name || 'Unassigned Project'}
+          </Typography>
         </Box>
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.65, minHeight: 40 }}>
@@ -98,12 +111,19 @@ function TaskCard({ task }) {
         </Box>
 
         <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
-          <Typography variant="caption" sx={{
-            display: 'block', mb: 1, fontWeight: 600, color: 'text.secondary',
-            letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem'
-          }}>
-            Assigned To
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="caption" sx={{
+              fontWeight: 600, color: 'text.secondary',
+              letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.65rem'
+            }}>
+              Assigned To
+            </Typography>
+            <Tooltip title="Edit Assignment">
+              <IconButton size="small" onClick={() => onEditAssignment(task)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
+                <PeopleIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
             {task.users && task.users.length > 0 ? (
               task.users.map(u => (
@@ -134,6 +154,7 @@ export default function AdminDashboard() {
 
   const [tasks, setTasks]             = useState([]);
   const [employees, setEmployees]     = useState([]);
+  const [projects, setProjects]       = useState([]);
   const [loading, setLoading]         = useState(true);
   const [errorMessage, setError]      = useState('');
   const [successMessage, setSuccess]  = useState('');
@@ -145,6 +166,18 @@ export default function AdminDashboard() {
   const [title, setTitle]                 = useState('');
   const [description, setDescription]     = useState('');
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectedProject, setSelectedProject] = useState('');
+
+  // Assignment Edit State
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [editTargetTask, setEditTargetTask] = useState(null);
+  const [editSelectedUsers, setEditSelectedUsers] = useState([]);
+  const [updatingAssignment, setUpdatingAssignment] = useState(false);
+
+  // Project Creation State
+  const [projectName, setProjectName] = useState('');
+  const [projectDesc, setProjectDesc] = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
 
   const [empSearch, setEmpSearch]     = useState('');
   const [empSort, setEmpSort]         = useState('name');
@@ -165,12 +198,14 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [uRes, tRes] = await Promise.all([
+      const [uRes, tRes, pRes] = await Promise.all([
         axios.get('http://127.0.0.1:8000/api/users', axiosConfig),
         axios.get('http://127.0.0.1:8000/api/tasks', axiosConfig),
+        axios.get('http://127.0.0.1:8000/api/projects', axiosConfig),
       ]);
       setEmployees(uRes.data.users);
       setTasks(tRes.data.tasks);
+      setProjects(pRes.data.projects || []);
     } catch {
       setError('Failed to load dashboard data. Check your network connection.');
       setNotifSeverity('error');
@@ -229,23 +264,78 @@ export default function AdminDashboard() {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    if (!selectedUsers.length) { 
-      setError('Assign at least one employee to this task.'); 
+    
+    if (!selectedProject) {
+      setError('Select a project for this task context.');
       setNotifSeverity('error');
       setOpenNotif(true);
-      return; 
+      return;
     }
     try {
-      await axios.post('http://127.0.0.1:8000/api/tasks', { title, description, user_ids: selectedUsers }, axiosConfig);
-      setSuccess('Task created and assigned successfully!');
+      await axios.post('http://127.0.0.1:8000/api/tasks', { 
+        title, 
+        description, 
+        project_id: selectedProject,
+        user_ids: selectedUsers 
+      }, axiosConfig);
+      setSuccess('Task published to workspace successfully!');
       setNotifSeverity('success');
       setOpenNotif(true);
-      setTitle(''); setDescription(''); setSelectedUsers([]);
+      setTitle(''); setDescription(''); setSelectedUsers([]); setSelectedProject('');
       fetchData();
     } catch {
       setError('Failed to create task. Please check the form values.');
       setNotifSeverity('error');
       setOpenNotif(true);
+    }
+  };
+
+  const handleOpenAssignmentModal = (task) => {
+    setEditTargetTask(task);
+    setEditSelectedUsers(task.users.map(u => u.id));
+    setAssignmentOpen(true);
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!editTargetTask) return;
+    setUpdatingAssignment(true);
+    try {
+      await axios.patch(`http://127.0.0.1:8000/api/tasks/${editTargetTask.id}/assignment`, {
+        user_ids: editSelectedUsers
+      }, axiosConfig);
+      setSuccess(`Assignments for "${editTargetTask.title}" updated successfully.`);
+      setNotifSeverity('success');
+      setOpenNotif(true);
+      setAssignmentOpen(false);
+      fetchData();
+    } catch {
+      setError('Failed to update task assignments.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
+    } finally {
+      setUpdatingAssignment(false);
+    }
+  };
+
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    setError(''); setSuccess(''); setCreatingProject(true);
+    try {
+      await axios.post('http://127.0.0.1:8000/api/projects', {
+        name: projectName,
+        description: projectDesc
+      }, axiosConfig);
+      setSuccess(`Project "${projectName}" initialized successfully!`);
+      setNotifSeverity('success');
+      setOpenNotif(true);
+      setProjectName(''); setProjectDesc('');
+      fetchData(); // Refresh projects list for task dropdown
+    } catch {
+      setError('Failed to provision project node.');
+      setNotifSeverity('error');
+      setOpenNotif(true);
+    } finally {
+      setCreatingProject(false);
     }
   };
 
@@ -319,7 +409,7 @@ export default function AdminDashboard() {
       <Grid container spacing={2} sx={{ mb: 3.5 }}>
         <Grid item xs={6} sm={3}><StatCard icon={TaskAltIcon}    label="Total Tasks"   value={stats.total}      accent={ACCENT}    /></Grid>
         <Grid item xs={6} sm={3}><StatCard icon={CheckCircleIcon} label="Completed"    value={stats.completed}  accent="#059669"   /></Grid>
-        <Grid item xs={6} sm={3}><StatCard icon={InProgressIcon}  label="In Progress"  value={stats.inProgress} accent="#d97706"   /></Grid>
+        <Grid item xs={6} sm={3}><StatCard icon={InProgressIcon}  label="In Progress"  value={stats.pending}   accent="#d97706"   /></Grid>
         <Grid item xs={6} sm={3}><StatCard icon={PeopleIcon}      label="Employees"    value={employees.length} accent={TEAL}      /></Grid>
       </Grid>
 
@@ -357,6 +447,11 @@ export default function AdminDashboard() {
               label="Create Task"
             />
             <Tab
+              icon={<FolderIcon sx={{ fontSize: 17 }} />}
+              iconPosition="start"
+              label="Create Project"
+            />
+            <Tab
               icon={
                 <Badge
                   badgeContent={employees.length}
@@ -388,6 +483,22 @@ export default function AdminDashboard() {
                   value={description} onChange={e => setDescription(e.target.value)}
                   sx={{ mb: 2 }}
                 />
+                
+                <FormControl fullWidth size="small" required sx={{ mb: 2 }}>
+                  <InputLabel>Select Project</InputLabel>
+                  <Select
+                    value={selectedProject}
+                    label="Select Project"
+                    onChange={e => setSelectedProject(e.target.value)}
+                  >
+                    {projects.map(project => (
+                      <MenuItem key={project.id} value={project.id}>
+                        {project.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
                 <FormControl fullWidth size="small" sx={{ mb: 3 }}>
                   <InputLabel>Assign Personnel</InputLabel>
                   <Select
@@ -443,6 +554,45 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === 1 && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', mb: 2.5 }}>
+                Initialize Project Cluster
+              </Typography>
+
+              <Box component="form" onSubmit={handleCreateProject}>
+                <TextField
+                  label="Project Name" fullWidth required size="small"
+                  value={projectName} onChange={e => setProjectName(e.target.value)}
+                  placeholder="e.g. Q3 Infrastructure"
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  label="Project Description" fullWidth multiline rows={4} size="small"
+                  value={projectDesc} onChange={e => setProjectDesc(e.target.value)}
+                  placeholder="Strategic overview..."
+                  sx={{ mb: 3 }}
+                />
+
+                <Button
+                  type="submit" variant="contained" fullWidth size="large"
+                  disabled={creatingProject}
+                  startIcon={<FolderIcon />}
+                  sx={{
+                    bgcolor: isDark ? 'primary.main' : '#0f172a', 
+                    color: isDark ? 'primary.contrastText' : '#fff', 
+                    fontWeight: 700, letterSpacing: '0.02em',
+                    borderRadius: 1.5, py: 1.4, textTransform: 'none',
+                    '&:hover': { bgcolor: isDark ? alpha(theme.palette.primary.main, 0.9) : '#2f3655' },
+                    boxShadow: 'none',
+                  }}
+                >
+                  {creatingProject ? 'Initializing...' : 'Provision Project'}
+                </Button>
+              </Box>
+            </Box>
+          )}
+
+          {activeTab === 2 && (
             <Box>
               <Box sx={{
                 p: 2,
@@ -683,7 +833,7 @@ export default function AdminDashboard() {
             </Paper>
           ) : (
             <Stack spacing={2}>
-              {filteredTasks.map(task => <TaskCard key={task.id} task={task} />)}
+              {filteredTasks.map(task => <TaskCard key={task.id} task={task} onEditAssignment={handleOpenAssignmentModal}/>)}
             </Stack>
           )}
         </Box>
@@ -740,6 +890,57 @@ export default function AdminDashboard() {
             }}
           >
             {processingDelete ? 'Removing…' : 'Remove Employee'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Assignment Edit Modal */}
+      <Dialog
+        open={assignmentOpen}
+        onClose={() => !updatingAssignment && setAssignmentOpen(false)}
+        PaperProps={{ elevation: 0, sx: { border: '1px solid', borderColor: 'divider', borderRadius: 2, maxWidth: 440, bgcolor: 'background.paper' } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Update Task Personnel</DialogTitle>
+        <DialogContent>
+          {editTargetTask && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>#{editTargetTask.task_number}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary', display: 'block' }}>{editTargetTask.title}</Typography>
+            </Box>
+          )}
+          <FormControl fullWidth size="small">
+            <InputLabel>Assign Personnel</InputLabel>
+            <Select
+              multiple value={editSelectedUsers}
+              onChange={e => setEditSelectedUsers(e.target.value)}
+              label="Assign Personnel"
+              renderValue={sel => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {sel.map(id => {
+                    const emp = employees.find(e => e.id === id);
+                    return <Chip key={id} label={emp?.name ?? id} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />;
+                  })}
+                </Box>
+              )}
+            >
+              {employees.map(emp => (
+                <MenuItem key={emp.id} value={emp.id}>
+                  <ListItemAvatar sx={{ minWidth: 36 }}><Avatar src={emp.avatar_url} sx={{ width: 24, height: 24, fontSize: '0.6rem' }}>{emp.name.charAt(0)}</Avatar></ListItemAvatar>
+                  <ListItemText primary={<Typography variant="body2">{emp.name}</Typography>} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setAssignmentOpen(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancel</Button>
+          <Button
+            onClick={handleUpdateAssignment}
+            variant="contained"
+            disabled={updatingAssignment}
+            sx={{ bgcolor: 'primary.main', fontWeight: 600, px: 3, borderRadius: 1.5 }}
+          >
+            {updatingAssignment ? 'Syncing...' : 'Update Roster'}
           </Button>
         </DialogActions>
       </Dialog>

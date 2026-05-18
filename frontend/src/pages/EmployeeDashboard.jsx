@@ -185,7 +185,7 @@ export default function EmployeeDashboard() {
   if (loading) return (
     <Box sx={{ p: 4, maxWidth: 900, mx: 'auto' }}>
       <Skeleton variant="text" width={280} height={48} sx={{ mb: 3 }} />
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 4 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>
         {[1,2,3,4].map(i => <Skeleton key={i} variant="rounded" height={80} />)}
       </Box>
       <Stack spacing={2}>
@@ -223,7 +223,7 @@ export default function EmployeeDashboard() {
         </Tooltip>
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 3.5 }}>
         <StatCard icon={AssignmentIcon}  label="Total Tasks"   value={stats.total}      accent={ACCENT}    />
         <StatCard icon={CheckCircleIcon} label="Completed"     value={stats.completed}  accent="#059669"   />
         <StatCard icon={InProgressIcon}  label="In Progress"   value={stats.inProgress} accent="#d97706"   />

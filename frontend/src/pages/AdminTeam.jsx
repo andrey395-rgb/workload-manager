@@ -348,7 +348,7 @@ export default function AdminTeamPage() {
   if (loading) return (
     <Box sx={{ p: 4, maxWidth: 1280, mx: 'auto' }}>
       <Skeleton variant="text" width={240} height={48} sx={{ mb: 3 }} />
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 4 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>
         {[1,2,3,4].map(i => <Skeleton key={i} variant="rounded" height={80} />)}
       </Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2.5 }}>
@@ -384,7 +384,7 @@ export default function AdminTeamPage() {
         </Tooltip>
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 3.5 }}>
         <StatCard icon={PeopleIcon}       label="Active Employees"  value={stats.total}           accent={TEAL}    />
         <StatCard icon={TaskAltIcon}      label="Assigned Members"   value={stats.withTasks}        accent={ACCENT}  />
         <StatCard icon={CheckCircleIcon}  label="Tasks Completed"  value={stats.completedTasks}   accent="#059669" />

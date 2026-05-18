@@ -7,35 +7,56 @@ use Illuminate\Http\Request;
 class TaskController extends Controller
 {
     public function store(Request $request) {
-        // 1. Validate the incoming data
+        // 1. Validate the incoming data, now including project linkage
         $fields = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'user_ids' => 'required|array', // We expect an array of IDs
-            'user_ids.*' => 'exists:users,id' // Security check: Ensure every ID in the array actually exists in the users table
+            'project_id' => 'required|exists:projects,id', // Every task must belong to a valid project
+            'user_ids' => 'nullable|array',
+            'user_ids.*' => 'exists:users,id'
         ]);
 
-        // 2. Create the task (status defaults to 'pending' based on our database migration)
+        // 2. Logic for Scoped Sequential ID (GitHub Style #1, #2...)
+        // We find the highest task_number currently assigned to this project and increment it
+        $maxTaskNumber = Task::where('project_id', $fields['project_id'])->max('task_number') ?? 0;
+        $nextTaskNumber = $maxTaskNumber + 1;
+
+        // 3. Create the task with its project and sequential identifier
         $task = Task::create([
             'title' => $fields['title'],
             'description' => $fields['description'] ?? null,
+            'project_id' => $fields['project_id'],
+            'task_number' => $nextTaskNumber,
         ]);
 
-        // 3. The Magic: Sync the users to the task via the pivot table
-        $task->users()->sync($fields['user_ids']);
+        // 4. Sync the users to the task via the pivot table
+        $task->users()->sync($fields['user_ids'] ?? []);
 
-        // 4. Return the task along with the assigned users' data
+        // 5. Return the task along with the assigned users' data
         return response()->json([
             'message' => 'Task created successfully',
-            'task' => $task->load('users')
+            'task' => $task->load(['users', 'project'])
         ], 201);
+    }
+
+    public function pickup(Request $request, $id) {
+        $task = Task::findOrFail($id);
+        $user = $request->user();
+
+        // Attach the user to the task without removing existing ones
+        $task->users()->syncWithoutDetaching([$user->id]);
+
+        return response()->json([
+            'message' => 'Task successfully claimed',
+            'task' => $task->load(['users', 'project'])
+        ], 200);
     }
     public function myTasks(Request $request) {
         // 1. Get the currently authenticated user
         $user = $request->user();
 
-        // 2. Retrieve all tasks assigned to this user
-        $tasks = $user->tasks; // Eager load users for each task
+        // 2. Retrieve all tasks assigned to this user, including parent project context
+        $tasks = $user->tasks()->with('project')->get();
 
         // 3. Return the tasks as a JSON response
         return response()->json([
@@ -44,8 +65,8 @@ class TaskController extends Controller
     }
     public function index()
     {
-        // Fetch all tasks and eager load the assigned users so we can display their names on the cards
-        $tasks = \App\Models\Task::with('users')->latest()->get();
+        // Fetch all tasks and eager load users AND projects for the dashboard view
+        $tasks = \App\Models\Task::with(['users', 'project'])->latest()->get();
 
         return response()->json([
             'tasks' => $tasks
@@ -79,6 +100,31 @@ class TaskController extends Controller
         return response()->json([
             'message' => 'Task updated successfully',
             'task' => $task
+        ], 200);
+    }
+
+    /**
+     * Update the assigned personnel for a specific task.
+     * Accessible by administrative nodes only.
+     */
+    public function updateAssignment(Request $request, $id)
+    {
+        // 1. Validate the incoming user array
+        $fields = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id'
+        ]);
+
+        // 2. Find the target task
+        $task = Task::findOrFail($id);
+
+        // 3. Sync the new personnel roster to the task node
+        $task->users()->sync($fields['user_ids']);
+
+        // 4. Return the updated task with its new context
+        return response()->json([
+            'message' => 'Personnel assignment synchronized successfully',
+            'task' => $task->load(['users', 'project'])
         ], 200);
     }
 }

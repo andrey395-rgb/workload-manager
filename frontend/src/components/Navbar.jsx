@@ -28,10 +28,14 @@ import {
   Tooltip,
   Avatar,
   useTheme,
+  useMediaQuery,
+  AppBar,
+  Toolbar,
   Switch,
 } from '@mui/material';
 
 import DashboardRoundedIcon          from '@mui/icons-material/DashboardRounded';
+// ... (rest of icons)
 import AssignmentRoundedIcon         from '@mui/icons-material/AssignmentRounded';
 import CalendarMonthRoundedIcon      from '@mui/icons-material/CalendarMonthRounded';
 import BarChartRoundedIcon           from '@mui/icons-material/BarChartRounded';
@@ -83,6 +87,7 @@ const buildCategories = (userRole, themeMode, toggleTheme) => [
         icon: <DashboardRoundedIcon />,
         path: userRole === 'admin' ? '/admin' : '/employee',
       },
+      { label: 'Projects', icon: <FolderRoundedIcon />, path: '/projects' },
     ],
   },
   ...(userRole === 'admin'
@@ -90,7 +95,6 @@ const buildCategories = (userRole, themeMode, toggleTheme) => [
         label: 'Management',
         items: [
           { label: 'Team',     icon: <PeopleRoundedIcon />, path: '/team' },
-          { label: 'Projects', icon: <FolderRoundedIcon />, path: '/projects' },
         ],
       }]
     : []),
@@ -203,11 +207,13 @@ function Navbar() {
   const theme = useTheme();
   const colorMode = useContext(ColorModeContext);
   const T = getTokens(theme.palette.mode, theme);
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const [isOpen,    setIsOpen]    = useState(true);
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [imgError,  setImgError]  = useState(false);
-  const [userId,    setUserId]    = useState(null);
+  const [isOpen,     setIsOpen]     = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatarUrl,  setAvatarUrl]  = useState('');
+  const [imgError,   setImgError]   = useState(false);
+  const [userId,     setUserId]     = useState(null);
 
   const userRole = localStorage.getItem('role')     || 'Pending';
   const username = localStorage.getItem('username') || 'User';
@@ -252,16 +258,16 @@ function Navbar() {
     fetchUserData();
   }, [fetchUserData]);
 
-useEffect(() => {
-  const handleStorageChange = (event) => {
-    if (event.key === 'token') {
-      fetchUserData();
-    }
-  };
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === 'token') {
+        fetchUserData();
+      }
+    };
 
-  window.addEventListener('storage', handleStorageChange);
-  return () => window.removeEventListener('storage', handleStorageChange);
-}, [fetchUserData]);
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [fetchUserData]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -272,39 +278,19 @@ useEffect(() => {
   if (location.pathname === '/login' || location.pathname === '/register') return null;
 
   const categories  = buildCategories(userRole, theme.palette.mode, colorMode.toggleColorMode);
-  const drawerWidth = isOpen ? DRAWER_OPEN_WIDTH : DRAWER_CLOSED_WIDTH;
+  const drawerWidth = isMobile ? DRAWER_OPEN_WIDTH : (isOpen ? DRAWER_OPEN_WIDTH : DRAWER_CLOSED_WIDTH);
   const showImage   = Boolean(avatarUrl) && !imgError;
 
-  return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: drawerWidth,
-        flexShrink: 0,
-        transition: T.transition,
-        '& .MuiDrawer-paper': {
-          width: drawerWidth,
-          boxSizing: 'border-box',
-          bgcolor: T.bg,
-          border: 'none',
-          overflowX: 'hidden',
-          borderRadius: '0 12px 12px 0',
-          overflowY: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: `width 0.22s cubic-bezier(0.4, 0, 0.2, 1)`,
-        },
-      }}
-    >
-
+  const drawerContent = (
+    <>
       {/* ── Header ── */}
       <Box sx={{
         display: 'flex', alignItems: 'center',
-        justifyContent: isOpen ? 'space-between' : 'center',
-        px: isOpen ? 2 : 0, height: 56,
+        justifyContent: (isOpen || isMobile) ? 'space-between' : 'center',
+        px: (isOpen || isMobile) ? 2 : 0, height: 56,
         borderBottom: `1px solid ${T.divider}`, flexShrink: 0,
       }}>
-        {isOpen && (
+        {(isOpen || isMobile) && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Box sx={{
               width: 26, height: 26, borderRadius: '7px', flexShrink: 0,
@@ -318,19 +304,28 @@ useEffect(() => {
             </Typography>
           </Box>
         )}
-        <IconButton
-          onClick={() => setIsOpen((v) => !v)} size="small"
-          sx={{ color: T.textSecondary, borderRadius: '8px', width: 32, height: 32, '&:hover': { color: T.textPrimary, bgcolor: T.bgHover } }}
-        >
-          {isOpen ? <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} /> : <MenuRoundedIcon sx={{ fontSize: 18 }} />}
-        </IconButton>
+        {!isMobile ? (
+          <IconButton
+            onClick={() => setIsOpen((v) => !v)} size="small"
+            sx={{ color: T.textSecondary, borderRadius: '8px', width: 32, height: 32, '&:hover': { color: T.textPrimary, bgcolor: T.bgHover } }}
+          >
+            {isOpen ? <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} /> : <MenuRoundedIcon sx={{ fontSize: 18 }} />}
+          </IconButton>
+        ) : (
+          <IconButton
+            onClick={() => setMobileOpen(false)} size="small"
+            sx={{ color: T.textSecondary, borderRadius: '8px', width: 32, height: 32, '&:hover': { color: T.textPrimary, bgcolor: T.bgHover } }}
+          >
+            <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        )}
       </Box>
 
       {/* ── User block ── */}
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 1.5,
-        px: isOpen ? 1.75 : 0, py: 1.25,
-        justifyContent: isOpen ? 'flex-start' : 'center',
+        px: (isOpen || isMobile) ? 1.75 : 0, py: 1.25,
+        justifyContent: (isOpen || isMobile) ? 'flex-start' : 'center',
         borderBottom: `1px solid ${T.divider}`, flexShrink: 0,
       }}>
         <Avatar
@@ -350,7 +345,7 @@ useEffect(() => {
           {!showImage && initials}
         </Avatar>
 
-        {isOpen && (
+        {(isOpen || isMobile) && (
           <Box sx={{ overflow: 'hidden' }}>
             <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 600, color: T.textPrimary, lineHeight: 1.3 }}>
               {username}
@@ -371,13 +366,19 @@ useEffect(() => {
       }}>
         {categories.map((cat, idx) => (
           <Box key={cat.label}>
-            <CategoryLabel label={cat.label} isOpen={isOpen} showDivider={idx > 0} T={T} />
+            <CategoryLabel label={cat.label} isOpen={isOpen || isMobile} showDivider={idx > 0} T={T} />
             <List disablePadding>
               {cat.items.map((item) => (
                 <NavItem
-                  key={item.path || item.label} item={item} isOpen={isOpen}
+                  key={item.path || item.label} item={item} isOpen={isOpen || isMobile}
                   isActive={location.pathname === item.path}
-                  onClick={item.action ? item.action : () => navigate(item.path)}
+                  onClick={() => {
+                    if (item.action) item.action();
+                    else {
+                      navigate(item.path);
+                      if (isMobile) setMobileOpen(false);
+                    }
+                  }}
                   T={T}
                   themeMode={theme.palette.mode}
                 />
@@ -389,7 +390,7 @@ useEffect(() => {
 
       {/* ── Logout footer ── */}
       <Box sx={{ borderTop: `1px solid ${T.divider}`, p: 1, flexShrink: 0 }}>
-        {isOpen ? (
+        {(isOpen || isMobile) ? (
           <ListItemButton
             onClick={handleLogout}
             sx={{
@@ -414,8 +415,65 @@ useEffect(() => {
           </Tooltip>
         )}
       </Box>
+    </>
+  );
 
-    </Drawer>
+  return (
+    <>
+      {isMobile && (
+        <AppBar 
+          position="fixed" 
+          elevation={0}
+          sx={{ 
+            display: { md: 'none' }, 
+            bgcolor: theme.palette.mode === 'light' ? '#fff' : '#0f172a',
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            color: theme.palette.text.primary,
+          }}
+        >
+          <Toolbar sx={{ justifyContent: 'space-between', minHeight: 56 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{
+                width: 26, height: 26, borderRadius: '7px',
+                background: `linear-gradient(135deg, ${T.accentBorder} 0%, #4338CA 100%)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>W</Typography>
+              </Box>
+              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Workload Manager</Typography>
+            </Box>
+            <IconButton onClick={() => setMobileOpen(true)} color="inherit">
+              <MenuRoundedIcon />
+            </IconButton>
+          </Toolbar>
+        </AppBar>
+      )}
+
+      <Drawer
+        variant={isMobile ? 'temporary' : 'permanent'}
+        open={isMobile ? mobileOpen : true}
+        onClose={() => setMobileOpen(false)}
+        sx={{
+          width: isMobile ? 0 : drawerWidth,
+          flexShrink: 0,
+          transition: T.transition,
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+            bgcolor: T.bg,
+            border: 'none',
+            overflowX: 'hidden',
+            borderRadius: isMobile ? 0 : '0 12px 12px 0',
+            overflowY: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            transition: `width 0.22s cubic-bezier(0.4, 0, 0.2, 1)`,
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+    </>
   );
 }
 

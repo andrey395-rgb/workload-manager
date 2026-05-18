@@ -56,6 +56,16 @@ The application strictly adheres to a premium, minimalist design philosophy:
 
 ---
 
+## 🛡 Safety & Database Protocol
+To ensure system integrity and prevent unintended data loss, the following protocol MUST be followed for all backend operations:
+
+1.  **Mandatory Warnings:** Any command that modifies the database structure or state (e.g., `php artisan migrate`, `db:seed`, or direct SQL) must be preceded by a clear explanation of its impact.
+2.  **Destructive Operations:** Commands like `migrate:fresh` or `migrate:reset` carry a **Critical Warning** as they wipe all existing data. These must only be used with explicit user acknowledgement or when necessary for core architectural changes.
+3.  **Schema Evolution:** When adding new migrations, explain exactly what columns, indexes, or tables are being introduced and how they affect existing models.
+4.  **Seeding:** Describe what "dummy" data is being injected and which existing records might be superseded.
+
+---
+
 ## 🚀 Local Development Setup
 
 ### Backend Initialization
@@ -71,3 +81,5 @@ php artisan storage:link
 
 # Start the Laravel server
 php artisan serve
+
+

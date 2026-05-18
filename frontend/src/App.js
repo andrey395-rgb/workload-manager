@@ -1,6 +1,6 @@
 import React, { useState, useMemo, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box, Toolbar } from '@mui/material';
 import { getAppTheme } from './theme';
 
 import Login from './pages/Login';
@@ -45,66 +45,76 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <BrowserRouter>
-          <Navbar />
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            
-            {/* Protected Admin Routes */}
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route
-              path="/team"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminTeam />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/projects"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <Projects />
-                </ProtectedRoute>
-              }
-            />
+          <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+            <Navbar />
+            <Box component="main" sx={{ 
+              flexGrow: 1, 
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              pt: { xs: 7, md: 0 } 
+            }}>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                
+                {/* Protected Admin Routes */}
+                <Route 
+                  path="/admin" 
+                  element={
+                    <ProtectedRoute requiredRole="admin">
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route
+                  path="/team"
+                  element={
+                    <ProtectedRoute requiredRole="admin">
+                      <AdminTeam />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/projects"
+                  element={
+                    <ProtectedRoute>
+                      <Projects isAdmin={localStorage.getItem('role') === 'admin'} />
+                    </ProtectedRoute>
+                  }
+                />
 
-            {/* Protected Employee Routes */}
-            <Route 
-              path="/employee" 
-              element={
-                <ProtectedRoute requiredRole="employee">
-                  <EmployeeDashboard />
-                </ProtectedRoute>
-              } 
-            />
+                {/* Protected Employee Routes */}
+                <Route 
+                  path="/employee" 
+                  element={
+                    <ProtectedRoute requiredRole="employee">
+                      <EmployeeDashboard />
+                    </ProtectedRoute>
+                  } 
+                />
 
-            {/* Shared Protected Routes */}
-            <Route 
-              path="/profile" 
-              element={
-                <Navigate to="/settings" replace />
-              } 
-            />
-            <Route 
-              path="/settings" 
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              } 
-            />
+                {/* Shared Protected Routes */}
+                <Route 
+                  path="/profile" 
+                  element={
+                    <Navigate to="/settings" replace />
+                  } 
+                />
+                <Route 
+                  path="/settings" 
+                  element={
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  } 
+                />
 
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
+                <Route path="*" element={<Navigate to="/login" />} />
+              </Routes>
+            </Box>
+          </Box>
         </BrowserRouter>
       </ThemeProvider>
     </ColorModeContext.Provider>
